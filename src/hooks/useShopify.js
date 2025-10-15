@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { shopifyConfig, nonXLProducts } from '../utils/constants';
+import { nonXLProducts } from '../utils/constants';
 import { extractMeals, calculateSize, generateId } from '../utils/helpers';
 import dummyOrders from '../shopfydata.json';
 import dummyProduct from '../product.json';

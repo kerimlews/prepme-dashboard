@@ -1,6 +1,6 @@
 // src/components/OrderModal.js
-import React, { useState, useEffect } from 'react';
-import { generateId, calculateSize } from '../utils/helpers';
+import { useState, useEffect } from 'react';
+import { calculateSize } from '../utils/helpers';
 
 const OrderModal = ({ isOpen, onClose, onSave, editingItem }) => {
   const [formData, setFormData] = useState({

@@ -10,7 +10,7 @@ import StatusMessage from './components/StatusMessage';
 import { useShopify } from './hooks/useShopify';
 import { useFileParser } from './hooks/useFileParser';
 import './styles/App.css';
-import { calculateCombinedPrice, calculateSize, generateId, getTodayDate, hasOrderOnDate, mergeMeals, getWeekDay } from './utils/helpers';
+import { calculateCombinedPrice, calculateSize, generateId, getTodayDate, hasOrderOnDate, mergeMeals } from './utils/helpers';
 import MonthlySubs from './components/MonthlySubs';
 import NotFoundMeals from './components/NotFoundMeals';
 
@@ -72,7 +72,6 @@ const App = () => {
   const {
     orders,
     loading,
-    error,
     monthlySubs,
     fetchOrders
   } = useShopify();
