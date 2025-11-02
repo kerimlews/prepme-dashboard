@@ -23,7 +23,7 @@
   "devDependencies": {
     "@astrojs/node": "^8.2.4",
     "@astrojs/react": "^4.1.2",
-    "astro": "^4.7.4"
+    "astro": "^5.15.3"
   },
   "exports": {
     ".": {
