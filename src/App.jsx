@@ -228,19 +228,20 @@ const App = () => {
     
     try {
 
-      const fake = [...ordersTableData, ...ordersTableData, ...ordersTableData]
       // Calculate total meals sum
-      const totalMealsSum = fake.reduce((sum, order) => sum + (order.totalMeals || 0), 0);
+      const totalMealsSum = ordersTableData.reduce((sum, order) => sum + (order.totalMeals || 0), 0);
       
+      const date = new Date().toISOString();
+
       // Get weekday for selected date in Croatian
-      const weekday = getWeekDayCroatian(selectedDate);
+      const weekday = getWeekDayCroatian(date);
       
       // Create DOCX document
-      const doc = await generateDocxDocument(fake, selectedDate, weekday, totalMealsSum);
+      const doc = await generateDocxDocument(ordersTableData, date, weekday, totalMealsSum);
       
       // Save the document
       const blob = await Packer.toBlob(doc);
-      saveAs(blob, `orders_${selectedDate}.docx`);
+      saveAs(blob, `orders_${date.split('T')[0]}.docx`);
       
       showStatus(`DOCX exported successfully! Orders: ${tableCounts.totalOrders}, Pretplate: ${tableCounts.totalPretplate}, New: ${tableCounts.newOrders}`);
     } catch (error) {
@@ -249,15 +250,17 @@ const App = () => {
   };
 
 const generateDocxDocument = async (ordersData, date, weekday, totalMealsSum) => {
+    console.log({ date, weekday });
+    
     // Convert date from YYYY-MM-DD to DD/MM/YYYY
     const formatDate = (dateStr) => {
-        const [year, month, day] = dateStr.split('-');
+        const [year, month, day] = dateStr.split('T')[0].split('-');
         return `${day}/${month}/${year}`;
     };
 
     // Calculate week number in month
     const getWeekInMonth = (dateStr) => {
-        const [year, month, day] = dateStr.split('-').map(Number);
+        const [year, month, day] = dateStr.split('T')[0].split('-').map(Number);
         const firstDay = new Date(year, month - 1, 1);
         const currentDate = new Date(year, month - 1, day);
         
