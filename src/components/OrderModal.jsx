@@ -20,6 +20,7 @@ const OrderModal = ({ isOpen, onClose, onSave, editingItem }) => {
         totalMeals: editingItem.totalMeals?.toString() || '',
         price: editingItem.price || '',
         target: editingItem.target || 'OS',
+        address: editingItem.address || '',
         current: editingItem.subscription?.current?.toString() || '1',
         total: editingItem.subscription?.total?.toString() || '1',
         meals: editingItem.meals ? Object.entries(editingItem.meals).map(([name, quantity]) => ({
@@ -34,6 +35,7 @@ const OrderModal = ({ isOpen, onClose, onSave, editingItem }) => {
         price: '',
         target: 'OS',
         current: '1',
+        address: '',
         total: '1',
         meals: [{ name: '', quantity: 1 }]
       });

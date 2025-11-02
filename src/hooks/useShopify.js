@@ -1,29 +1,58 @@
 import { useState, useCallback } from 'react';
 import { nonXLProducts } from '../utils/constants';
 import { extractMeals, calculateSize, generateId } from '../utils/helpers';
-import dummyOrders from '../shopfydata.json';
-import dummyProduct from '../product.json';
 
 export const useShopify = () => {
-  const [orders, setOrders] = useState([]);
+  const [orders, setOrders] = useState({ orders: [], additionalOrders: [] });
   const [loading, setLoading] = useState(false);
   const [monthlySubs, setMonthlySubs] = useState([]);
   const [error, setError] = useState(null);
 
   const fetchProduct = useCallback(async (productId) => {
     try {
-      // Mock implementation - replace with actual API call
-      const mockProduct = dummyProduct;
+      const response = await fetch(`/api/shopify/products/${productId}`);
       
-      return mockProduct.product;
+      if (!response.ok) {
+        throw new Error(`Failed to fetch product: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
+      return data.product;
     } catch (err) {
       console.error('Error fetching product:', err);
       return null;
     }
   }, []);
 
+  const fetchOrdersByDate = useCallback(async (date) => {
+    try {
+      
+      const response = await fetch(`/api/shopify/orders?created_at_min=${date}`);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch orders: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
+      return data.orders;
+    } catch (err) {
+      console.error('Error fetching orders:', err);
+      throw err;
+    }
+  }, []);
+
   const processOrder = useCallback(async (order, pretplateData) => {
-    const customerName = `${order.customer.first_name} ${order.customer.last_name}`;
+    const customerName = `${order.customer?.first_name || ''} ${order.customer?.last_name || ''}`.trim();
     const isPaket = order.line_items.some(item => 
       item.title && (item.title.includes('PAKET') || item.title.includes('paket'))
     );
@@ -35,10 +64,10 @@ export const useShopify = () => {
       if (product && product.body_html) {
         meals = extractMeals(product.body_html);
       }
-      
+
       const isXL = order.line_items[0].variant_title?.includes('XL') || 
                    order.line_items[0].title?.includes('XL');
-      
+
       if (isXL) {
         const xlMeals = {};
         for (const [meal, quantity] of Object.entries(meals)) {
@@ -50,15 +79,19 @@ export const useShopify = () => {
       const totalMeals = Object.values(meals).reduce((sum, qty) => sum + qty, 0);
       const size = calculateSize(totalMeals);
       
+      meals = Object.keys(meals).length > 0 ? meals : { [product?.title || 'Unknown Product']: 1 };
+      
       return {
         id: generateId(),
         name: customerName,
         totalMeals,
-        price: '0.00',
+        price: order.total_price,
         meals,
         pretplata: false,
-        target: 'OS',
-        subscription: { current: 1, total: 1 },
+        url: order.order_status_url,
+        isCOD: order.payment_gateway_names && order.payment_gateway_names.includes("Cash on Delivery (COD)"),
+        address: order?.billing_address?.address1 || order?.shipping_address?.address1 || '',
+        target: (order.billing_address?.city === 'Osijek' || order.shipping_address?.city === 'Osijek') ? 'OS' : 'HR',
         size
       };
     } else {
@@ -67,14 +100,15 @@ export const useShopify = () => {
       
       for (const item of order.line_items) {
         // Check if it's mjesecna pretplata
-
-        if (item.name.startsWith('Mjesečna pretplata')) {
+        if (item.name && item.name.startsWith('Mjesečna pretplata')) {
           setMonthlySubs(prev => [...prev, {
             url: order.order_status_url,
-            name: item.name
-          }])
+            name: item.name,
+            customer: customerName
+          }]);
           continue;
         }
+        
         if (!nonXLProducts.includes(item.title)) {
           meals[item.title] = (meals[item.title] || 0) + item.quantity;
           totalMeals += item.quantity;
@@ -90,9 +124,9 @@ export const useShopify = () => {
           meals,
           url: order.order_status_url,
           pretplata: false,
-          address: order?.billing_address?.address1 || order?.billing_address?.address2,
-          target: order.billing_address.city === 'Osijek' ? 'OS' : 'HR',
-          subscription: { current: 0, total: 0 },
+          isCOD: order.payment_gateway_names && order.payment_gateway_names.includes("Cash on Delivery (COD)"),
+          address: order?.billing_address?.address1 || order?.shipping_address?.address1 || '',
+          target: (order.billing_address?.city === 'Osijek' || order.shipping_address?.city === 'Osijek') ? 'OS' : 'HR',
           size: calculateSize(totalMeals)
         };
       }
@@ -101,37 +135,56 @@ export const useShopify = () => {
     return null;
   }, [fetchProduct]);
 
-  const fetchOrders = useCallback(async (selectedDate, pretplateData) => {
+  const fetchOrders = async (selectedDate, pretplateData) => {
     setLoading(true);
     setError(null);
     
     try {
+      // Fetch real orders from Shopify API
+      const shopifyOrders = await fetchOrdersByDate(selectedDate);
       
-      const processedOrders = [];
-      for (const order of dummyOrders.orders) {
-        const processedOrder = await processOrder(order, pretplateData);
-        console.log('processedOrder', processedOrder);
-        
-        if (processedOrder) {
-          processedOrders.push(processedOrder);
-        }
-      }
-
-      setOrders(processedOrders);
-      return processedOrders;
+      const processPromises = shopifyOrders.map(order => 
+        processOrder(order, pretplateData)
+      );
+      
+      // Filter out null values (orders without meals or monthly subscriptions)
+      const processedOrders = (await Promise.all(processPromises)).filter(Boolean);
+            
+      const newProcessedOrders = processedOrders.filter(order => order.target === 'OS');
+      const newAdditionalOrders = processedOrders.filter(order => order.target !== 'OS');
+      
+      const result = { 
+        orders: newProcessedOrders, 
+        additionalOrders: newAdditionalOrders 
+      };
+      
+      setOrders(result);
+      return result;
     } catch (err) {
-      setError(err.message);
-      return [];
+      const errorMessage = err.message || 'Failed to fetch orders from Shopify';
+      setError(errorMessage);
+      console.error('Error in fetchOrders:', err);
+      
+      // Return empty result on error
+      const emptyResult = { orders: [], additionalOrders: [] };
+      setOrders(emptyResult);
+      return emptyResult;
     } finally {
       setLoading(false);
     }
-  }, [processOrder]);
+  };
+
+  // Clear error function
+  const clearError = useCallback(() => {
+    setError(null);
+  }, []);
 
   return {
     orders,
     loading,
     monthlySubs,
     error,
-    fetchOrders
+    fetchOrders,
+    clearError
   };
 };

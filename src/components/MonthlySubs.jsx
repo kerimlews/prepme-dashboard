@@ -6,7 +6,7 @@ const MonthlySubs = ({ monthlySubs }) => {
   return (
     <div className="monthly-subs-container">
     <div className="monthly-subs-header">
-        <h4>📅 Monthly Subscriptions Found ({monthlySubs.length})</h4>
+        <h4>📅 Mjesecne pretplate: ({monthlySubs.length})</h4>
     </div>
     <div className="monthly-subs-list">
         {monthlySubs.map((sub, index) => (
@@ -18,7 +18,7 @@ const MonthlySubs = ({ monthlySubs }) => {
             rel="noopener noreferrer"
             className="sub-link"
             >
-            🔗 View Order
+            🔗 Pogledaj
             </a>
         </div>
         ))}

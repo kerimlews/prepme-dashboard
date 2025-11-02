@@ -1,6 +1,7 @@
 // src/components/Sidebar.js
 import React, { useState, useMemo } from 'react';
 import { hasOrderOnDate } from '../utils/helpers';
+import CustomDateInput from './CustomDateInput';
 
 const Sidebar = ({
   title,
@@ -56,23 +57,42 @@ const Sidebar = ({
     setSearchTerm('');
   };
 
-  const renderRow = (item) => {
+  const renderCardContent = (item) => {
     if (type === 'nazivi') {
       return (
-        <>
-          <td>{item.jelo}</td>
-          <td>{item.webNaziv}</td>
-        </>
+        <div className="card-content">
+          <div className="card-field">
+            <strong>JELO:</strong> {item.jelo}
+          </div>
+          <div className="card-field">
+            <strong>WEB NAZIV:</strong> {item.webNaziv}
+          </div>
+        </div>
       );
     } else {
       return (
-        <>
-          <td>{item.name}</td>
-          <td>{item.size}</td>
-          <td>{item.target}</td>
-          <td>{item.subscription.current}/{item.subscription.total}</td>
-          <td>{item.price}</td>
-        </>
+        <div className="card-content">
+          <div className="card-field">
+            <strong>Name:</strong> {item.name}
+          </div>
+          <div className="card-field">
+            <strong>Size:</strong> {item.size}
+          </div>
+          <div className="card-field">
+            <strong>Target:</strong> {item.target}
+          </div>
+          <div className="card-field">
+            <strong>Subscription:</strong> {item.subscription?.current}/{item.subscription?.total}
+          </div>
+          <div className="card-field">
+            <strong>Price:</strong> {item.price}
+          </div>
+          {item.orderDates && (
+            <div className="card-field">
+              <strong>Order Dates:</strong> {item.orderDates.join(', ')}
+            </div>
+          )}
+        </div>
       );
     }
   };
@@ -81,19 +101,16 @@ const Sidebar = ({
     <div className="sidebar">
       <div className="sidebar-header">
         <div className="sidebar-title">{title} ({displayCount})</div>
-        <button onClick={onAdd}>Add</button>
+        <button className="add-btn" onClick={onAdd} title={`Add ${type}`}>
+          <span className="icon">+</span>
+        </button>
       </div>
 
       {/* Date Filter and Search Section */}
       <div className="sidebar-filters">
         {showDateFilter && (
           <div className="sidebar-date-section">
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => onDateChange(e.target.value)}
-              className="sidebar-date-input"
-            />
+            <CustomDateInput onDateChange={onDateChange} />
             {selectedDate && (
               <div className="sidebar-date-info">
                 Showing orders for: {selectedDate}
@@ -119,7 +136,7 @@ const Sidebar = ({
         </div>
       </div>
       
-      <div className="sidebar-content">
+      <div className="sidebar-content cards-container">
         {filteredData.length === 0 ? (
           <div className="empty-state">
             <i>{type === 'nazivi' ? '📋' : '📊'}</i>
@@ -138,37 +155,29 @@ const Sidebar = ({
             )}
           </div>
         ) : (
-          <table>
-            <thead>
-              <tr>
-                {columns.map(column => (
-                  <th key={column}>{column}</th>
-                ))}
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredData.map(item => (
-                <tr key={item.id}>
-                  {renderRow(item)}
-                  <td>
-                    <button 
-                      className="edit-btn"
-                      onClick={() => onEdit(item.id)}
-                    >
-                      Edit
-                    </button>
-                    <button 
-                      className="danger delete-btn"
-                      onClick={() => onDelete(item.id)}
-                    >
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="cards-grid">
+            {filteredData.map(item => (
+              <div key={item.id} className="card">
+                <div className="card-actions">
+                  <button 
+                    className="icon-btn edit-btn"
+                    onClick={() => onEdit(item.id)}
+                    title="Edit"
+                  >
+                    ✏️
+                  </button>
+                  <button 
+                    className="icon-btn delete-btn"
+                    onClick={() => onDelete(item.id)}
+                    title="Delete"
+                  >
+                    🗑️
+                  </button>
+                </div>
+                {renderCardContent(item)}
+              </div>
+            ))}
+          </div>
         )}
       </div>
     </div>

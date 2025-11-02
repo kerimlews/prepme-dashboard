@@ -1,11 +1,12 @@
 // src/components/Controls.js
-import React from 'react';
+import CustomDateInput from './CustomDateInput';
 
 const Controls = ({
   selectedDate,
   onDateChange,
   onNaziviFileChange,
   onPretplateFileChange,
+  onDodatnoFileChange,
   onFetchOrders,
   loading
 }) => {
@@ -30,17 +31,21 @@ const Controls = ({
           onChange={onPretplateFileChange}
         />
       </div>
+
+      <div className="control-group">
+        <label htmlFor="pretplate-file">Dodatne narudzbe</label>
+        <input
+          type="file"
+          id="dodatno-file"
+          accept=".json"
+          onChange={onDodatnoFileChange}
+        />
+      </div>
       
       <div className="control-group date-fetch-group">
-        <div className="date-input-container">
-          <label htmlFor="date-select">Select Date</label>
-          <input
-            type="date"
-            id="date-select"
-            value={selectedDate}
-            onChange={(e) => onDateChange(e.target.value)}
+         <CustomDateInput
+            onDateChange={onDateChange}
           />
-        </div>
         <button 
           id="fetch-orders" 
           onClick={onFetchOrders}

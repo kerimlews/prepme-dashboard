@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import CustomDateInput from './CustomDateInput';
+import { convertStringToDDMMYYYY, formatDateToDDMMYYYY } from '../utils/helpers';
 
 export const NaziviModal = ({ isOpen, onClose, onSave, editingItem }) => {
   const [formData, setFormData] = useState({ jelo: '', webNaziv: '' });
@@ -142,7 +144,7 @@ export const PretplateModal = ({ isOpen, onClose, onSave, editingItem }) => {
     if (newDate && !formData.orderDates.includes(newDate)) {
       setFormData(prev => ({
         ...prev,
-        orderDates: [...prev.orderDates, newDate]
+        orderDates: [...prev.orderDates, formatDateToDDMMYYYY(newDate)]
       }));
       setNewDate('');
     }
@@ -289,12 +291,7 @@ export const PretplateModal = ({ isOpen, onClose, onSave, editingItem }) => {
           <div className="form-group">
             <label htmlFor="order-date">Order Dates</label>
             <div className="date-input-container">
-              <input
-                type="date"
-                id="order-date"
-                value={newDate}
-                onChange={(e) => setNewDate(e.target.value)}
-              />
+              <CustomDateInput onDateChange={setNewDate} />
               <button type="button" onClick={addOrderDate} className="secondary">
                 Add Date
               </button>
@@ -305,7 +302,7 @@ export const PretplateModal = ({ isOpen, onClose, onSave, editingItem }) => {
                 <ul>
                   {formData.orderDates.map(date => (
                     <li key={date} className="date-item">
-                      {date}
+                      {convertStringToDDMMYYYY(date)}
                       <button 
                         type="button" 
                         onClick={() => removeOrderDate(date)}

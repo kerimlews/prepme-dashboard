@@ -28,11 +28,112 @@ export const calculateCombinedPrice = (price1, price2) => {
   return combined.toFixed(2).replace('.', ',');
 };
 
+function parseMeals(mealText) {
+    // Remove parentheses and trim
+    const cleanText = mealText.replace(/[()]/g, '').trim();
+    
+    const mealPattern = /(\d+)\s*x\s*([^,]+)/g;
+    const meals = [];
+    let match;
+    
+    while ((match = mealPattern.exec(cleanText)) !== null) {
+        meals.push({
+            quantity: parseInt(match[1]),
+            name: match[2].trim()
+        });
+    }
+    
+    return meals;
+}
+
+export const formatDateToDDMMYYYY = (isoString) => {
+  if (!isoString) return '';
+  
+  try {
+    const date = new Date(isoString);
+    
+    // Check if date is valid
+    if (isNaN(date.getTime())) {
+      console.warn('Invalid date provided to formatDateToDDMMYYYY:', isoString);
+      return '';
+    }
+    
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    
+    return `${day}/${month}/${year}`;
+  } catch (error) {
+    console.error('Error formatting date:', error);
+    return '';
+  }
+};
+
+export const convertStringToDDMMYYYY = (dateString) => {
+  if (!dateString) return '';
+  
+  try {
+    // Check if already in DD/MM/YYYY format
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateString)) {
+      const [day, month, year] = dateString.split('/').map(Number);
+      
+      // Validate date
+      const date = new Date(year, month - 1, day);
+            
+      if (date.getDate() === day && 
+          date.getMonth() === month - 1 && 
+          date.getFullYear() === year) {
+        return dateString; // Already valid DD/MM/YYYY
+      }
+    }
+    
+    return '';
+  } catch (error) {
+    console.error('Error converting date:', error);
+    return '';
+  }
+};
+// Convert YYYY-MM-DD to DD/MM/YYYY from date input
+export const formatDateFromInput = (dateString) => {
+  if (!dateString) return '';
+  
+  // If already in DD/MM/YYYY format, return as is
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateString)) {
+    return dateString;
+  }
+  
+  // Convert from YYYY-MM-DD to DD/MM/YYYY
+  const parts = dateString.split('-');
+  if (parts.length === 3) {
+    const [year, month, day] = parts;
+    return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
+  }
+  
+  return dateString;
+};
+
+// Validate DD/MM/YYYY date format
+export const isValidDate = (dateString) => {
+  const regex = /^\d{2}\/\d{2}\/\d{4}$/;
+  if (!regex.test(dateString)) return false;
+  
+  const parts = dateString.split('/');
+  const day = parseInt(parts[0], 10);
+  const month = parseInt(parts[1], 10);
+  const year = parseInt(parts[2], 10);
+  
+  // Check if date is valid
+  const date = new Date(year, month - 1, day);
+  return date.getFullYear() === year && 
+         date.getMonth() === month - 1 && 
+         date.getDate() === day;
+};
+
 export const extractMeals = (htmlString) => {
   const parser = new DOMParser();
   const doc = parser.parseFromString(htmlString, 'text/html');
   
-  const mealElements = doc.querySelectorAll('h5 strong');
+  const mealElements = doc.querySelectorAll('h5, strong');
   const mealCounts = {};
   let totalCount = 0;
   
@@ -45,16 +146,22 @@ export const extractMeals = (htmlString) => {
         !mealText.includes('XL veličina') &&
         mealText.length > 5) {
       
-      const match = mealText.match(/^(\d+)\s*x\s*(.+)$/);
+      // Remove parentheses and clean the text
+      const cleanText = mealText.replace(/[()]/g, '').trim();
       
-      if (match) {
+      // Use global regex to find ALL meal patterns
+      const mealPattern = /(\d+)\s*x\s*([^,]+)/g;
+      let match;
+      
+      while ((match = mealPattern.exec(cleanText)) !== null) {
         const quantity = parseInt(match[1]);
         const mealName = match[2]
           .replace(/&amp;/g, '&')
           .replace(/\s+/g, ' ')
           .trim();
         
-        if (mealName) {
+        // Additional validation to skip empty or invalid meal names
+        if (mealName && mealName.length > 1 && quantity > 0) {
           if (!mealCounts[mealName]) {
             mealCounts[mealName] = 0;
           }
@@ -124,6 +231,6 @@ export const getTodayDate = () => {
   return new Date().toISOString().split('T')[0];
 };
 
-export const hasOrderOnDate = (orderDates, selectedDate) => {
-  return orderDates && selectedDate && orderDates.includes(selectedDate);
+export const hasOrderOnDate = (orderDates, selectedDate) => {    
+  return orderDates && selectedDate && orderDates.includes(formatDateToDDMMYYYY(selectedDate));
 };
