@@ -8,12 +8,18 @@ export const useShopify = () => {
   const [monthlySubs, setMonthlySubs] = useState([]);
   const [error, setError] = useState(null);
 
-  const fetchProduct = useCallback(async (productId) => {
+  // Bulk fetch products by IDs
+  const fetchProducts = useCallback(async (productIds) => {
     try {
-      const response = await fetch(`/api/shopify/products/${productId}`);
+      if (!productIds || productIds.length === 0) {
+        return [];
+      }
+
+      const idsString = productIds.join(',');
+      const response = await fetch(`/api/shopify/products?ids=${idsString}`);
       
       if (!response.ok) {
-        throw new Error(`Failed to fetch product: ${response.status}`);
+        throw new Error(`Failed to fetch products: ${response.status}`);
       }
       
       const data = await response.json();
@@ -22,16 +28,26 @@ export const useShopify = () => {
         throw new Error(data.error);
       }
       
-      return data.product;
+      return data.products || [];
+    } catch (err) {
+      console.error('Error fetching products:', err);
+      return [];
+    }
+  }, []);
+
+  // Single product fetch (for backward compatibility)
+  const fetchProduct = useCallback(async (productId) => {
+    try {
+      const products = await fetchProducts([productId]);
+      return products[0] || null;
     } catch (err) {
       console.error('Error fetching product:', err);
       return null;
     }
-  }, []);
+  }, [fetchProducts]);
 
   const fetchOrdersByDate = useCallback(async (date) => {
     try {
-      
       const response = await fetch(`/api/shopify/orders?created_at_min=${date}`);
       
       if (!response.ok) {
@@ -44,96 +60,131 @@ export const useShopify = () => {
         throw new Error(data.error);
       }
       
-      return data.orders;
+      return data.orders || [];
     } catch (err) {
       console.error('Error fetching orders:', err);
       throw err;
     }
   }, []);
 
-  const processOrder = useCallback(async (order, pretplateData) => {
-    const customerName = `${order.customer?.first_name || ''} ${order.customer?.last_name || ''}`.trim();
-    const isPaket = order.line_items.some(item => 
-      item.title && (item.title.includes('PAKET') || item.title.includes('paket'))
-    );
-
-    if (isPaket) {
-      const product = await fetchProduct(order.line_items[0].product_id);
-      let meals = {};
+  // Bulk process products for better performance
+  const processOrdersWithProducts = useCallback(async (orders, pretplateData) => {
+    // Collect all unique product IDs from all orders
+    const productIds = [];
+    const orderProductMap = new Map(); // Map order index to product IDs
+    
+    orders.forEach((order, index) => {
+      const orderProductIds = order.line_items
+        .map(item => item.product_id)
+        .filter(id => id);
       
-      if (product && product.body_html) {
-        meals = extractMeals(product.body_html);
+      if (orderProductIds.length > 0) {
+        productIds.push(...orderProductIds);
+        orderProductMap.set(index, orderProductIds);
       }
+    });
 
-      const isXL = order.line_items[0].variant_title?.includes('XL') || 
-                   order.line_items[0].title?.includes('XL');
+    // Fetch all products in bulk
+    const uniqueProductIds = [...new Set(productIds)];
+    const products = await fetchProducts(uniqueProductIds);
+    
+    // Create a map for quick product lookup
+    const productMap = new Map();
+    products.forEach(product => {
+      productMap.set(product.id, product);
+    });
 
-      if (isXL) {
-        const xlMeals = {};
-        for (const [meal, quantity] of Object.entries(meals)) {
-          xlMeals[`XL ${meal}`] = quantity;
+    // Process each order with the pre-fetched products
+    const processedOrders = [];
+    
+    for (const [orderIndex, productIds] of orderProductMap) {
+      const order = orders[orderIndex];
+      const customerName = `${order.customer?.first_name || ''} ${order.customer?.last_name || ''}`.trim();
+      const isPaket = order.line_items.some(item => 
+        item.title && (item.title.includes('PAKET') || item.title.includes('paket'))
+      );
+
+      if (isPaket) {
+        const mainProductId = order.line_items[0].product_id;
+        const product = productMap.get(mainProductId);
+        let meals = {};
+        
+        if (product && product.body_html) {
+          meals = extractMeals(product.body_html);
         }
-        meals = xlMeals;
-      }
-      
-      const totalMeals = Object.values(meals).reduce((sum, qty) => sum + qty, 0);
-      const size = calculateSize(totalMeals);
-      
-      meals = Object.keys(meals).length > 0 ? meals : { [product?.title || 'Unknown Product']: 1 };
-      
-      return {
-        id: generateId(),
-        name: customerName,
-        totalMeals,
-        price: order.total_price,
-        meals,
-        pretplata: false,
-        url: order.order_status_url,
-        isCOD: order.payment_gateway_names && order.payment_gateway_names.includes("Cash on Delivery (COD)"),
-        address: order?.billing_address?.address1 || order?.shipping_address?.address1 || '',
-        target: (order.billing_address?.city === 'Osijek' || order.shipping_address?.city === 'Osijek') ? 'OS' : 'HR',
-        size
-      };
-    } else {
-      const meals = {};
-      let totalMeals = 0;
-      
-      for (const item of order.line_items) {
-        // Check if it's mjesecna pretplata
-        if (item.name && item.name.startsWith('Mjesečna pretplata')) {
-          setMonthlySubs(prev => [...prev, {
-            url: order.order_status_url,
-            name: item.name,
-            customer: customerName
-          }]);
-          continue;
+
+        const isXL = order.line_items[0].variant_title?.includes('XL') || 
+                     order.line_items[0].title?.includes('XL');
+
+        if (isXL) {
+          const xlMeals = {};
+          for (const [meal, quantity] of Object.entries(meals)) {
+            xlMeals[`XL ${meal}`] = quantity;
+          }
+          meals = xlMeals;
         }
         
-        if (!nonXLProducts.includes(item.title)) {
-          meals[item.title] = (meals[item.title] || 0) + item.quantity;
-          totalMeals += item.quantity;
-        }
-      }
-      
-      if (totalMeals > 0) {
-        return {
+        const totalMeals = Object.values(meals).reduce((sum, qty) => sum + qty, 0);
+        const size = calculateSize(totalMeals);
+        
+        meals = Object.keys(meals).length > 0 ? meals : { [product?.title || 'Unknown Product']: 1 };
+        
+        processedOrders.push({
           id: generateId(),
           name: customerName,
           totalMeals,
           price: order.total_price,
           meals,
-          url: order.order_status_url,
           pretplata: false,
+          url: order.order_status_url,
           isCOD: order.payment_gateway_names && order.payment_gateway_names.includes("Cash on Delivery (COD)"),
           address: order?.billing_address?.address1 || order?.shipping_address?.address1 || '',
           target: (order.billing_address?.city === 'Osijek' || order.shipping_address?.city === 'Osijek') ? 'OS' : 'HR',
-          size: calculateSize(totalMeals)
-        };
+          size
+        });
+      } else {
+        const meals = {};
+        let totalMeals = 0;
+        let hasValidItems = false;
+        
+        for (const item of order.line_items) {
+          // Check if it's mjesecna pretplata
+          if (item.name && item.name.startsWith('Mjesečna pretplata')) {
+            setMonthlySubs(prev => [...prev, {
+              url: order.order_status_url,
+              name: item.name,
+              customer: customerName
+            }]);
+            continue;
+          }
+          
+          if (!nonXLProducts.includes(item.title)) {
+            meals[item.title] = (meals[item.title] || 0) + item.quantity;
+            totalMeals += item.quantity;
+            hasValidItems = true;
+          }
+        }
+        
+        if (hasValidItems) {
+          processedOrders.push({
+            id: generateId(),
+            name: customerName,
+            totalMeals,
+            price: order.total_price,
+            meals,
+            url: order.order_status_url,
+            pretplata: false,
+            isCOD: order.payment_gateway_names && order.payment_gateway_names.includes("Cash on Delivery (COD)"),
+            address: order?.billing_address?.address1 || order?.shipping_address?.address1 || '',
+            target: (order.billing_address?.city === 'Osijek' || order.shipping_address?.city === 'Osijek') ? 'OS' : 'HR',
+            size: calculateSize(totalMeals)
+          });
+        }
       }
     }
     
-    return null;
-  }, [fetchProduct]);
+    return processedOrders;
+  }, [fetchProducts]);
 
   const fetchOrders = async (selectedDate, pretplateData) => {
     setLoading(true);
@@ -143,12 +194,14 @@ export const useShopify = () => {
       // Fetch real orders from Shopify API
       const shopifyOrders = await fetchOrdersByDate(selectedDate);
       
-      const processPromises = shopifyOrders.map(order => 
-        processOrder(order, pretplateData)
-      );
-      
-      // Filter out null values (orders without meals or monthly subscriptions)
-      const processedOrders = (await Promise.all(processPromises)).filter(Boolean);
+      if (shopifyOrders.length === 0) {
+        const emptyResult = { orders: [], additionalOrders: [] };
+        setOrders(emptyResult);
+        return emptyResult;
+      }
+
+      // Process orders with bulk product fetching
+      const processedOrders = await processOrdersWithProducts(shopifyOrders, pretplateData);
             
       const newProcessedOrders = processedOrders.filter(order => order.target === 'OS');
       const newAdditionalOrders = processedOrders.filter(order => order.target !== 'OS');
@@ -185,6 +238,8 @@ export const useShopify = () => {
     monthlySubs,
     error,
     fetchOrders,
+    fetchProducts, // Export bulk products fetch
+    fetchProduct,  // Export single product fetch
     clearError
   };
 };
