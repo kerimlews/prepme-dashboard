@@ -14,6 +14,7 @@ import { calculateCombinedPrice, calculateSize, generateId, getTodayDate, hasOrd
 import MonthlySubs from './components/MonthlySubs';
 import NotFoundMeals from './components/NotFoundMeals';
 const { saveAs } = pkg;
+import './styles/App.css';
 
 // Helper function to map meal names
 const mapMealNames = (meals, naziviData) => {
@@ -107,7 +108,7 @@ const App = () => {
     });
 
     let notfoundMeals = {};
-    
+        
     // Then process Shopify orders and merge with existing pretplate
     [...orders, ...dateFilteredPretplate, ...dodatno].forEach(shopifyOrder => {
       const lowerName = shopifyOrder.name.toLowerCase();
@@ -796,12 +797,14 @@ const handleExportAdditionalOrders = () => {
         loading={loading}
       />
 
-      {additionalOrders?.length > 0 && (
         <div className="gemini-ai-container">
-          <div style={{ marginBottom: '10px', fontWeight: 'bold' }}>
-            Dodatne narudžbe izvan Osijeka: {additionalOrders.length}
+          <div style={{ marginBottom: '10px', fontWeight: 'bold', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <span>Dodatne narudžbe izvan Osijeka: {additionalOrders.length}</span>
+            <span>Naružbe unutar Osijeka: {orders.length}</span>
           </div>
           
+      {additionalOrders?.length > 0 && (
+          <>
           <div className="gemini-ai-scroll">
             {additionalOrders.map((order, index) => (
               <div key={order.id || index} className="additional-order-card">
@@ -818,8 +821,9 @@ const handleExportAdditionalOrders = () => {
           <button className="export-button" onClick={handleExportAdditionalOrders}>
             Export Narudzbe za sutra
           </button>
+          </>
+          )}
         </div>
-      )}
 
       <StatusMessage
         message={status.message}

@@ -1,14 +1,21 @@
+import { convertStringToDDMMYYYY } from "../../../utils/helpers";
+
+// src/pages/api/shopify/orders.js
 export const prerender = false;
 
 export async function GET({ url }) {
-  const date = url.searchParams.get('created_at_min');
+  const created = url.searchParams.get('created_at_min');
   const status = url.searchParams.get('status') || 'open';
+  
+  const [year, day, month] = created.split('T')[0].split('-'); // Note: [year, day, month]
+  
+  const date = `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
   
   try {
     const SHOPIFY_CONFIG = {
       storeUrl: '6be389.myshopify.com',
       accessToken: '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',
-      apiVersion: '2024-01'
+      apiVersion: '2025-10'
     };
 
     const SHOPIFY_BASE_URL = `https://${SHOPIFY_CONFIG.storeUrl}/admin/api/${SHOPIFY_CONFIG.apiVersion}`;
@@ -18,15 +25,6 @@ export async function GET({ url }) {
       'Content-Type': 'application/json',
     };
 
-    const params = new URLSearchParams();
-    params.append('status', status);
-    params.append('fulfillment_status', 'unfulfilled');
-
-    if (date) {
-      const formattedDate = new Date(date).toISOString().split('T')[0];
-      params.append('created_at_min', `${formattedDate}T00:00:00Z`);
-    }
-
     // Add build-time protection
     if (import.meta.env?.SSG) {
       return new Response(JSON.stringify({ orders: [] }), {
@@ -35,20 +33,88 @@ export async function GET({ url }) {
       });
     }
 
-    console.log('🛍️ Fetching Shopify orders:', `${SHOPIFY_BASE_URL}/orders.json?${params}`);
+    console.log('🛍️ Fetching Shopify orders via GraphQL');
     
-    const response = await fetch(`${SHOPIFY_BASE_URL}/orders.json?${params}`, { headers });
+    console.log(date);
+    
+    const query = `
+query FetchOrdersByTag {
+  orders(first: 250, query: "tag:${date} AND status:open") {
+    nodes {
+      id
+      name
+      tags
+      createdAt
+      paymentGatewayNames
+      totalPrice
+      statusPageUrl
+      registeredSourceUrl
+
+      customAttributes {
+        key
+        value
+      }
+       
+      totalPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      billingAddress {
+        address1
+        city
+      }
+      shippingAddress {
+        address1
+        city
+      }
+      customer {
+        id
+        displayName
+        email
+        firstName
+        lastName
+      }
+      lineItems(first: 250) {
+        nodes {
+          title
+          quantity
+          variant {
+            id
+            title
+            product {
+              id
+            }
+          }
+        }
+      }
+    }
+  }
+}
+`;
+
+    const response = await fetch(`${SHOPIFY_BASE_URL}/graphql.json`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ query })
+    });
     
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Shopify API error: ${response.status} - ${errorText}`);
     }
 
-    const data = await response.json();
+    const  {data} = await response.json();
+      
+    const normalizedOrders = data.orders.nodes.map(n => ({
+      ...n,
+      lineItems: n?.lineItems?.nodes || []
+    }))
     
     return new Response(JSON.stringify({ 
-      orders: data.orders || [],
-      total: data.orders?.length || 0
+      orders: normalizedOrders,
+      total: normalizedOrders.length
     }), {
       status: 200,
       headers: {
@@ -68,3 +134,4 @@ export async function GET({ url }) {
     });
   }
 }
+

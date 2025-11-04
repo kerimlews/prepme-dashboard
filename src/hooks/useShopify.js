@@ -48,6 +48,7 @@ export const useShopify = () => {
 
   const fetchOrdersByDate = useCallback(async (date) => {
     try {
+
       const response = await fetch(`/api/shopify/orders?created_at_min=${date}`);
       
       if (!response.ok) {
@@ -74,8 +75,8 @@ export const useShopify = () => {
     const orderProductMap = new Map(); // Map order index to product IDs
     
     orders.forEach((order, index) => {
-      const orderProductIds = order.line_items
-        .map(item => item.product_id)
+      const orderProductIds = order.lineItems
+        .map(item => item?.variant?.product?.id?.replace('gid://shopify/Product/', ''))
         .filter(id => id);
       
       if (orderProductIds.length > 0) {
@@ -87,7 +88,7 @@ export const useShopify = () => {
     // Fetch all products in bulk
     const uniqueProductIds = [...new Set(productIds)];
     const products = await fetchProducts(uniqueProductIds);
-    
+        
     // Create a map for quick product lookup
     const productMap = new Map();
     products.forEach(product => {
@@ -99,13 +100,13 @@ export const useShopify = () => {
     
     for (const [orderIndex, productIds] of orderProductMap) {
       const order = orders[orderIndex];
-      const customerName = `${order.customer?.first_name || ''} ${order.customer?.last_name || ''}`.trim();
-      const isPaket = order.line_items.some(item => 
+      const customerName = `${order.customer?.firsName || ''} ${order.customer?.lastName || ''}`.trim();
+      const isPaket = order.lineItems.some(item => 
         item.title && (item.title.includes('PAKET') || item.title.includes('paket'))
       );
 
       if (isPaket) {
-        const mainProductId = order.line_items[0].product_id;
+        const mainProductId = order.lineItems[0].product_id;
         const product = productMap.get(mainProductId);
         let meals = {};
         
@@ -113,8 +114,8 @@ export const useShopify = () => {
           meals = extractMeals(product.body_html);
         }
 
-        const isXL = order.line_items[0].variant_title?.includes('XL') || 
-                     order.line_items[0].title?.includes('XL');
+        const isXL = order.lineItems[0].variant_title?.includes('XL') || 
+                     order.lineItems[0].title?.includes('XL');
 
         if (isXL) {
           const xlMeals = {};
@@ -133,13 +134,13 @@ export const useShopify = () => {
           id: generateId(),
           name: customerName,
           totalMeals,
-          price: order.total_price,
+          price: order.totalPrice,
           meals,
           pretplata: false,
-          url: order.order_status_url,
-          isCOD: order.payment_gateway_names && order.payment_gateway_names.includes("Cash on Delivery (COD)"),
-          address: order?.billing_address?.address1 || order?.shipping_address?.address1 || '',
-          target: (order.billing_address?.city === 'Osijek' || order.shipping_address?.city === 'Osijek') ? 'OS' : 'HR',
+          url: order.statusPageUrl,
+          isCOD: order.paymentGatewayNames && order.paymentGatewayNames.includes("Cash on Delivery (COD)"),
+          address: order?.billingAddress?.address1 || order?.shippingAddress?.address1 || '',
+          target: (order.billingAddress?.city === 'Osijek' || order.shippingAddress?.city === 'Osijek') ? 'OS' : 'HR',
           size
         });
       } else {
@@ -147,11 +148,11 @@ export const useShopify = () => {
         let totalMeals = 0;
         let hasValidItems = false;
         
-        for (const item of order.line_items) {
+        for (const item of order.lineItems) {
           // Check if it's mjesecna pretplata
           if (item.name && item.name.startsWith('Mjesečna pretplata')) {
             setMonthlySubs(prev => [...prev, {
-              url: order.order_status_url,
+              url: order.statusPageUrl,
               name: item.name,
               customer: customerName
             }]);
@@ -170,13 +171,13 @@ export const useShopify = () => {
             id: generateId(),
             name: customerName,
             totalMeals,
-            price: order.total_price,
+            price: order.totalPrice,
             meals,
-            url: order.order_status_url,
+            url: order.statusPageUrl,
             pretplata: false,
-            isCOD: order.payment_gateway_names && order.payment_gateway_names.includes("Cash on Delivery (COD)"),
-            address: order?.billing_address?.address1 || order?.shipping_address?.address1 || '',
-            target: (order.billing_address?.city === 'Osijek' || order.shipping_address?.city === 'Osijek') ? 'OS' : 'HR',
+            isCOD: order.paymentGatewayNames && order.paymentGatewayNames.includes("Cash on Delivery (COD)"),
+            address: order?.billingAddress?.address1 || order?.shippingAddress?.address1 || '',
+            target: (order.billingAddress?.city === 'Osijek' || order.shippingAddress?.city === 'Osijek') ? 'OS' : 'HR',
             size: calculateSize(totalMeals)
           });
         }
@@ -206,10 +207,13 @@ export const useShopify = () => {
       const newProcessedOrders = processedOrders.filter(order => order.target === 'OS');
       const newAdditionalOrders = processedOrders.filter(order => order.target !== 'OS');
       
+      
       const result = { 
         orders: newProcessedOrders, 
         additionalOrders: newAdditionalOrders 
       };
+      
+      console.log({shopifyOrders, result});
       
       setOrders(result);
       return result;
