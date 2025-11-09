@@ -78,6 +78,10 @@ export const useShopify = (imports) => {
         }
       }
 
+      const city = (order.billingAddress?.city || order.shippingAddress?.city || '').toLowerCase();
+
+      console.log({customerName, city});
+      
       processedOrders.push({
         id: generateId(),
         name: customerName,
@@ -88,7 +92,7 @@ export const useShopify = (imports) => {
         url: order.statusPageUrl,
         isCOD: order.paymentGatewayNames && order.paymentGatewayNames.includes("Cash on Delivery (COD)"),
         address: order?.billingAddress?.address1 || order?.shippingAddress?.address1 || '',
-        target: (order.billingAddress?.city === 'Osijek' || order.shippingAddress?.city === 'Osijek') ? 'OS' : 'HR',
+        target: city === 'osijek' ? 'OS' : 'HR',
         size: calculateSize(totalMeals)
       });
     }
