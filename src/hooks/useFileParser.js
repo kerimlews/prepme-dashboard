@@ -1,9 +1,11 @@
 import { useState, useCallback, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { calculateSize, parseSubscription, generateId, determineType, formatDateFromInput, formatDateToDDMMYYYY, convertStringToDDMMYYYY } from '../utils/helpers';
+import ExcelJS from 'exceljs';
 
 export const useFileParser = () => {
   const [naziviData, setNaziviData] = useState([]);
+  const [imports, setImports] = useState([]);
   const [pretplateData, setPretplateData] = useState([]);
 
   // Update pretplateData when nazivi changes
@@ -41,49 +43,106 @@ export const useFileParser = () => {
 
     const parseNaziviFile = useCallback((file) => {
         return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        
-        reader.onload = (e) => {
-            try {
-            const data = new Uint8Array(e.target.result);
-            const workbook = XLSX.read(data, { type: 'array' });
-            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+            const reader = new FileReader();
             
-            // Convert sheet to JSON with the correct column names from your image
-            const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+            reader.onload = (e) => {
+                try {
+                    console.log('workbook start');
+                    
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    
+                    // Process first sheet (original logic)
+                    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+                    
+                    const parsedData = jsonData
+                        .filter(item => typeof item.__EMPTY_2 === 'string' && typeof item.__EMPTY_3 === 'string')
+                        .map(item => ({
+                            id: generateId(),
+                            jelo: item.__EMPTY_2 || '',
+                            webNaziv: item.__EMPTY_3 || ''
+                        }));
+                    
+                    setNaziviData(parsedData);
+
+                    // Process 'Import' sheet
+                    const importSheet = workbook.Sheets['import'];
+                    const importData = [];
+                    
+                    console.log('workbook', workbook.Sheets);
+                    if (importSheet) {
+                        const importJsonData = XLSX.utils.sheet_to_json(importSheet, { 
+                            header: 1, // Get raw data as array
+                            defval: '' 
+                        });
                         
-            // Map the data to our expected format
-            const parsedData = jsonData
-                .filter(item => typeof item.__EMPTY_2 === 'string' && typeof item.__EMPTY_3 === 'string')
-                .map(item => ({
-                    id: generateId(),
-                    jelo: item.__EMPTY_2 || '',
-                    webNaziv: item.__EMPTY_3 || ''
-                }));
                         
-            setNaziviData(parsedData);
-            resolve(parsedData);
-            } catch (error) {
-            console.error('Error parsing nazivi file:', error);
-            reject(error);
-            }
-        };
-        
-        reader.onerror = () => reject(new Error('Failed to read file'));
-        reader.readAsArrayBuffer(file);
+                        let currentPackage = null;
+                        
+                        for (const row of importJsonData) {
+                            // Skip empty rows
+                            if (!row || row.length < 21) continue; // Need at least 21 columns for T and U
+                            
+                            const colT = row[19]; // Column T (index 19 since it's 0-based)
+                            const colU = row[20]; // Column U (index 20)
+                            
+                            // Skip if both columns are empty
+                            if (!colT && !colU) continue;
+                            
+                            // Check if this is a package row (contains "x" in column T)
+                            if (colT && typeof colT === 'string' && colT.includes('x') && colU) {
+                                // Save previous package if exists
+                                if (currentPackage) {
+                                    importData.push(currentPackage);
+                                }
+                                
+                                // Extract number from "10x" format
+                                const totalMeals = parseInt(colT.replace('x', '')) || 0;
+                                
+                                currentPackage = {
+                                    id: generateId(),
+                                    name: colU.trim(),
+                                    totalMeals: totalMeals,
+                                    meals: {}
+                                };
+                            } 
+                            // Check if this is a meal row (has number in T and text in U)
+                            else if (currentPackage && colT && !isNaN(colT) && colU) {
+                                const mealCount = parseInt(colT) || 1;
+                                const mealName = colU.trim();
+                                
+                                if (mealName && mealName !== currentPackage.name) {
+                                    currentPackage.meals[mealName] = mealCount;
+                                }
+                            }
+                        }
+                        
+                        // Push the last package
+                        if (currentPackage) {
+                            importData.push(currentPackage);
+                        }
+                        
+                        console.log('workbook', importData);
+                        
+                        setImports(importData);
+                    }
+
+                    resolve({
+                        naziviData: parsedData,
+                        importData: importData
+                    });
+                } catch (error) {
+                    console.error('Error parsing nazivi file:', error);
+                    reject(error);
+                }
+            };
+            
+            reader.onerror = () => reject(new Error('Failed to read file'));
+            reader.readAsArrayBuffer(file);
         });
     }, []);
-    
-    // In your price calculation logic, add this check:
-function calculatePrice(item) {
-  // If there's a subscription pattern like "2/4", "1/5", etc., price should be 0
-  if (item.price && /^\d+\/\d+$/.test(item.price.toString().trim())) {
-    return "0";
-  }
-  
-  // Your existing price calculation logic here
-  return item.price || "0";
-}
+
 
   const parsePretplateFile = useCallback((file) => {
       return new Promise((resolve, reject) => {
@@ -237,32 +296,39 @@ function calculatePrice(item) {
                           // Parse meal from the value (only if it's not a date)
                           if (cellText && !cellText.match(/^\d{1,2}\.\d{1,2}\.?/)) {
                               // Parse meal quantity and name
-                              const quantityMatch = cellText.match(/^(\d+)\s*X?\s*(.+)$/i);
+                              const quantityMatch = cellText.match(/^(\d+)\s*(?:X\s|\sX\s)?(.+)$/i);
 
-                              if (quantityMatch) {
-                                  // Has quantity prefix like "2X" or "2 X"
-                                  const quantity = parseInt(quantityMatch[1]);
-                                  let mealName = quantityMatch[2]?.trim();
-                                  
-                                  mealName = mealName.replace(/\s+/g, ' ').trim();
-                                  
-                                  // Skip if meal name is only 'x'
-                                  if (mealName.toLowerCase() === 'x') {
-                                      return;
-                                  }
-                                  if (!customer.meals[mealName]) {
-                                      customer.meals[mealName] = 0;
-                                  }
-                                  customer.meals[mealName] += quantity;
-                                  customer.totalMeals += quantity;
-                              } else {
+                                if (quantityMatch) {
+                                    // Has quantity prefix like "2X" or "2 X"
+                                    const quantity = parseInt(quantityMatch[1]);
+                                    let mealName = quantityMatch[2]?.trim();
+                                    
+                                    mealName = mealName.replace(/\s+/g, ' ').trim();
+                                    
+                                    // Skip if meal name is only 'x'
+                                    if (mealName.toLowerCase() === 'x') {
+                                        return;
+                                    }
+                                    
+                                    // Remove the standalone "X" only if it's at the very beginning after quantity
+                                    // but keep "X" when it's part of words like "XL", "X-LARGE", etc.
+                                    if (mealName.match(/^X(\s|$)/i)) {
+                                        mealName = mealName.substring(1).trim();
+                                    }
+                                    
+                                    if (!customer.meals[mealName]) {
+                                        customer.meals[mealName] = 0;
+                                    }
+                                    customer.meals[mealName] += quantity;
+                                    customer.totalMeals += quantity;
+                                } else {
                                   // No quantity prefix - just use the text as-is
                                   let mealName = cellText.trim();
                                   
                                   mealName = mealName.replace(/\s+/g, ' ').trim();
                                   
                                   // Skip if meal name is only 'x'
-                                  if (['x', '...'].includes(mealName.toLowerCase())) {
+                                  if (['x', '...', '?', 'skip', 'to go', 'PAUZA (2X TO GO)'].includes(mealName.toLowerCase())) {
                                       return;
                                   }
                                   if (!customer.meals[mealName]) {
@@ -355,9 +421,52 @@ function calculatePrice(item) {
     setPretplateData(prev => prev.filter(item => item.id !== id));
   }, []);
 
+
+async function updateExcelFile(file, mealsData) {
+    try {
+        // Read the Excel file
+        const arrayBuffer = await file.arrayBuffer();
+        const workbook = new ExcelJS.Workbook();
+        await workbook.xlsx.load(arrayBuffer);
+
+        // Get the first worksheet
+        const worksheet = workbook.getWorksheet(1);
+
+        // Update quantities based on meal names
+        worksheet.eachRow((row, rowNumber) => {
+            if (rowNumber > 1) { // Skip header row
+                const mealNameCell = row.getCell(3); // Column C
+                const quantityCell = row.getCell(2); // Column B
+                
+                const mealName = mealNameCell.value;
+                if (mealName && mealsData.hasOwnProperty(mealName)) {
+                    quantityCell.value = mealsData[mealName];
+                }
+            }
+        });
+
+        // Download the updated file with preserved styles
+        const buffer = await workbook.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = 'updated_meals_preserved.xlsx';
+        link.click();
+        
+        URL.revokeObjectURL(link.href);
+        
+    } catch (error) {
+        console.error('Error processing Excel file:', error);
+        alert('Error processing file: ' + error.message);
+    }
+}
+
   return {
     naziviData,
     pretplateData,
+    imports,
+    updateExcelFile,
     parseNaziviFile,
     parsePretplateFile,
     addNazivi,

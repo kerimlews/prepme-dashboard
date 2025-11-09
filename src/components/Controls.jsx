@@ -8,6 +8,7 @@ const Controls = ({
   onPretplateFileChange,
   onDodatnoFileChange,
   onFetchOrders,
+  setKalkulatorFile,
   loading
 }) => {
   return (
@@ -41,6 +42,18 @@ const Controls = ({
           onChange={onDodatnoFileChange}
         />
       </div>
+
+      <div className="control-group">
+        <label htmlFor="kalkulator-file">Kalkulator</label>
+        <input
+          type="file"
+          id="kalkulator-file"
+          accept=".xlsx, .xls"
+          onChange={setKalkulatorFile}
+        />
+      </div>
+
+      
       
       <div className="control-group date-fetch-group">
          <CustomDateInput

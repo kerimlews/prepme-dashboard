@@ -83,6 +83,7 @@ query FetchOrdersByTag {
           variant {
             id
             title
+            displayName
             product {
               id
             }

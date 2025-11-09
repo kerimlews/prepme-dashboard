@@ -17,7 +17,7 @@ const { saveAs } = pkg;
 import './styles/App.css';
 
 // Helper function to map meal names
-const mapMealNames = (meals, naziviData) => {
+const mapMealNames = (meals, naziviData, imports) => {
   if (!meals) return {};
 
   // normalize keys
@@ -26,17 +26,26 @@ const mapMealNames = (meals, naziviData) => {
     [a.webNaziv.toLowerCase().trim()]: a.jelo
   }), {});
   
-  const values = Object.values(keys).map(k => k.toLowerCase().trim());
+   const values = Object.values(keys).map(k => k.toLowerCase().trim());
 
   const notfound = {};
-
-  const updatedMeals = {};
+  
+  let updatedMeals = {};
   Object.entries(meals).forEach(([mealName, quantity]) => {
     const normalizeMealName = mealName.toLowerCase().trim();
     const mappedName = keys[normalizeMealName] || mealName;
     if (!keys[normalizeMealName] && !values.includes(normalizeMealName)) notfound[mappedName] = 1;
     
-    updatedMeals[mappedName] = quantity;
+    const paket = imports.find(i => i.name.toLowerCase().startsWith(normalizeMealName));
+
+    if (paket) {
+      Object.keys(paket.meals).forEach(mealKey => {
+        updatedMeals[mealKey] = (updatedMeals[mealKey] || 0) + paket.meals[mealKey]
+      })
+    } else {
+      updatedMeals[mappedName] = (updatedMeals[mappedName] || 0) + quantity;
+    }
+
   });
     
   return { meals: updatedMeals, notfound };
@@ -58,11 +67,14 @@ const App = () => {
   const [ordersTableData, setOrdersTableData] = useState([]);
   const [notfoundMeals, setNotfoundMeals] = useState({});
   const [dodatno, setDodatno] = useState([]);
-
+  const [kalkulatorFile, setKalkulatorFile] = useState();
+  
   const {
+    imports,
     naziviData,
     pretplateData,
     parseNaziviFile,
+    updateExcelFile,
     parsePretplateFile,
     addNazivi,
     updateNazivi,
@@ -77,7 +89,9 @@ const App = () => {
     loading,
     monthlySubs,
     fetchOrders
-  } = useShopify();
+  } = useShopify(imports);
+  
+  // console.log({ naziviData, orders, imports });
   
   // Create orders function - maps Shopify orders and merges with filtered pretplate
   const handleCreateOrders = () => {
@@ -94,33 +108,26 @@ const App = () => {
     // Get pretplate data filtered by selected date from right sidebar
     const dateFilteredPretplate = pretplateData.filter(pretplate =>
       hasOrderOnDate(pretplate.orderDates, pretplateSelectedDate || selectedDate)
-    );
+    ).map(d => ({ ...d, pretplata: true }));
 
     // Create a map for quick lookup
     const ordersMap = new Map();
 
-    // First, add all pretplate orders to the map
-    dateFilteredPretplate.forEach(pretplate => {
-      ordersMap.set(pretplate.name.toLowerCase(), {
-        ...pretplate,
-        pretplata: true
-      }); 
-    });
-
     let notfoundMeals = {};
         
+    
     // Then process Shopify orders and merge with existing pretplate
     [...orders, ...dateFilteredPretplate, ...dodatno].forEach(shopifyOrder => {
       const lowerName = shopifyOrder.name.toLowerCase();
       const existingOrder = ordersMap.get(lowerName);
       
-      const { meals, notfound } = mapMealNames(shopifyOrder.meals, naziviData);
-      const { meals: existingMeals, notfound: notfoundExisting } = existingOrder ? mapMealNames(existingOrder.meals, naziviData) : { meals: [], notfound: [] };
-
+      const { meals, notfound } = mapMealNames(shopifyOrder.meals, naziviData, imports);
+      const { meals: existingMeals, notfound: notfoundExisting } = existingOrder ? mapMealNames(existingOrder.meals, naziviData, imports) : { meals: [], notfound: [] };
+      
       shopifyOrder.meals = meals;
-
+      
       notfoundMeals = { ...notfoundMeals, ...notfound, ...notfoundExisting };
-
+      
       if (existingOrder) {
         // Merge with existing pretplate order
         const mergedMeals = mergeMeals(existingMeals, meals);
@@ -136,10 +143,7 @@ const App = () => {
         });
       } else {
         // New order from Shopify
-        ordersMap.set(lowerName, {
-          ...shopifyOrder,
-          pretplata: false,
-        });
+        ordersMap.set(lowerName, shopifyOrder);
       }
     });
 
@@ -228,11 +232,16 @@ const App = () => {
     }
     
     try {
-
+      updateExcelFile(kalkulatorFile, ordersTableData.reduce((acc, a) => {
+        Object.keys(a.meals).forEach(key => {
+          acc[key] = (acc[key] || 0) + a.meals[key]
+        })
+        return acc
+      }, {}))
       // Calculate total meals sum
       const totalMealsSum = ordersTableData.reduce((sum, order) => sum + (order.totalMeals || 0), 0);
       
-      const date = new Date().toISOString();
+      const date = new Date(selectedDate).toISOString();
 
       // Get weekday for selected date in Croatian
       const weekday = getWeekDayCroatian(date);
@@ -412,7 +421,7 @@ const generateDocxDocument = async (ordersData, date, weekday, totalMealsSum) =>
                                             bold: true,
                                         }),
                                     ],
-                                    alignment: AlignmentType.RIGHT,
+                                    alignment: AlignmentType.CENTER,
                                 }),
                             ],
                             width: {
@@ -565,87 +574,24 @@ const generateDocxDocument = async (ordersData, date, weekday, totalMealsSum) =>
     return doc;
 };
 
-  // Helper function to create individual order table
-  const createOrderTable = (order) => {
-    // Build header text with conditional fields
-    let headerText = `${order.name} / ${order.totalMeals || 0}X / ${order.target || ''}`;
-    
-    if (order.price) headerText += ` / ${order.price}`;
-    if (order.type) headerText += ` ${order.type}`;
-    if (order.size) headerText += ` / ${order.size}`;
-
-    // Create meal rows
-    const mealRows = [];
-    if (order.meals) {
-      Object.entries(order.meals).forEach(([meal, quantity]) => {
-        mealRows.push(
-          new TableRow({
-            children: [
-              // Left column for numbers - 30px width
-              new TableCell({
-                children: [new Paragraph({ 
-                  children: [new TextRun({ text: quantity.toString() })],
-                  alignment: AlignmentType.LEFT
-                })],
-              }),
-              // Right column for meal names
-              new TableCell({
-                children: [new Paragraph({ 
-                  children: [new TextRun({ text: meal })],
-                  alignment: AlignmentType.LEFT
-                })],
-              }),
-            ],
-          })
-        );
-      });
-    }
-
-    return new Table({
-      width: {
-        size: 100,
-        type: WidthType.PERCENTAGE,
-      },
-      borders: {
-        top: { style: "none" },
-        bottom: { style: "none" },
-        left: { style: "none" },
-        right: { style: "none" },
-        insideHorizontal: { style: "none" },
-        insideVertical: { style: "none" },
-      },
-      columnWidths: [500, 8000], // 50px for numbers, rest for meal names
-      rows: [
-        // Header row
-        new TableRow({
-          children: [
-            new TableCell({
-              children: [
-                new Paragraph({
-                  children: [
-                    new TextRun({
-                      text: headerText,
-                      bold: true,
-                    }),
-                  ],
-                }),
-              ],
-              columnSpan: 2,
-            }),
-          ],
-        }),
-        // Meal rows
-        ...mealRows,
-      ],
-    });
-  };
-
   const handlePretplateFileChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
     try {
       await parsePretplateFile(file);
+      showStatus('Pretplate data loaded successfully!');
+    } catch (error) {
+      showStatus('Error loading pretplate file: ' + error.message, 'error');
+    }
+  };
+
+   const handleKalkulatorFileChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    try {
+      setKalkulatorFile(file)
       showStatus('Pretplate data loaded successfully!');
     } catch (error) {
       showStatus('Error loading pretplate file: ' + error.message, 'error');
@@ -794,6 +740,7 @@ const handleExportAdditionalOrders = () => {
         onPretplateFileChange={handlePretplateFileChange}
         onDodatnoFileChange={handleDodatnoFileChange}
         onFetchOrders={handleFetchOrders}
+        setKalkulatorFile={handleKalkulatorFileChange}
         loading={loading}
       />
 
