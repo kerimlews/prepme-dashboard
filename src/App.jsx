@@ -750,8 +750,8 @@ const handleExportAdditionalOrders = () => {
 
         <div className="gemini-ai-container">
           <div style={{ marginBottom: '10px', fontWeight: 'bold', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <span>Dodatne narudžbe izvan Osijeka: {additionalOrders.length}</span>
-            <span>Naružbe unutar Osijeka: {orders.length}</span>
+            <span>Dodatne narudžbe unutar Osijeka: {additionalOrders.length}</span>
+            <span>Naružbe izvan Osijeka: {orders.length}</span>
           </div>
           
       {additionalOrders?.length > 0 && (
