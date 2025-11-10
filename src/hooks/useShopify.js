@@ -40,7 +40,7 @@ export const useShopify = (imports) => {
       
       const customerName = order.customer?.displayName;
       
-      const meals = {};
+      let meals = {};
       let totalMeals = 0;
 
       for (const item of order.lineItems) {       
@@ -79,8 +79,6 @@ export const useShopify = (imports) => {
       }
 
       const city = (order.billingAddress?.city || order.shippingAddress?.city || '').toLowerCase();
-
-      console.log({customerName, city});
       
       processedOrders.push({
         id: generateId(),
@@ -117,8 +115,8 @@ export const useShopify = (imports) => {
       // Process orders with bulk product fetching
       const processedOrders = await processOrdersWithProducts(shopifyOrders);
             
-      const newProcessedOrders = processedOrders.filter(order => order.target === 'OS');
-      const newAdditionalOrders = processedOrders.filter(order => order.target !== 'OS');
+      const newProcessedOrders = processedOrders.filter(order => order.target !== 'OS');
+      const newAdditionalOrders = processedOrders.filter(order => order.target === 'OS');
       
       const result = { 
         orders: newProcessedOrders, 

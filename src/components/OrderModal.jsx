@@ -21,8 +21,8 @@ const OrderModal = ({ isOpen, onClose, onSave, editingItem }) => {
         price: editingItem.price || '',
         target: editingItem.target || 'OS',
         address: editingItem.address || '',
-        current: editingItem.subscription?.current?.toString() || '1',
-        total: editingItem.subscription?.total?.toString() || '1',
+        current: editingItem.subscription?.current?.toString() || '0',
+        total: editingItem.subscription?.total?.toString() || '0',
         meals: editingItem.meals ? Object.entries(editingItem.meals).map(([name, quantity]) => ({
           name,
           quantity
@@ -34,9 +34,9 @@ const OrderModal = ({ isOpen, onClose, onSave, editingItem }) => {
         totalMeals: '',
         price: '',
         target: 'OS',
-        current: '1',
+        current: '0',
         address: '',
-        total: '1',
+        total: '0',
         meals: [{ name: '', quantity: 1 }]
       });
     }
@@ -87,18 +87,24 @@ const OrderModal = ({ isOpen, onClose, onSave, editingItem }) => {
     const totalMeals = parseInt(formData.totalMeals) || Object.values(mealsObj).reduce((a, b) => a + b, 0);
     const size = calculateSize(totalMeals);
 
-    onSave({
+    const data = {
       name: formData.name,
       totalMeals,
       price: formData.price,
       target: formData.target,
-      subscription: {
-        current: parseInt(formData.current),
-        total: parseInt(formData.total)
-      },
       meals: mealsObj,
       size
-    });
+    };
+
+    if (parseInt(formData.total) > 0) {
+      data.subscription = {
+        current: parseInt(formData.current),
+        total: parseInt(formData.total)
+      }
+      data.pretplata = true;
+    }
+
+    onSave(data);
   };
 
   if (!isOpen) return null;
@@ -170,7 +176,6 @@ const OrderModal = ({ isOpen, onClose, onSave, editingItem }) => {
               >
                 <option value="OS">OS</option>
                 <option value="HR">HR</option>
-                <option value="AMBASADOR">AMBASADOR</option>
               </select>
             </div>
             
@@ -181,7 +186,7 @@ const OrderModal = ({ isOpen, onClose, onSave, editingItem }) => {
                 id="order-current"
                 value={formData.current}
                 onChange={(e) => setFormData(prev => ({ ...prev, current: e.target.value }))}
-                min="1"
+                min="0"
               />
             </div>
             
@@ -192,7 +197,7 @@ const OrderModal = ({ isOpen, onClose, onSave, editingItem }) => {
                 id="order-total"
                 value={formData.total}
                 onChange={(e) => setFormData(prev => ({ ...prev, total: e.target.value }))}
-                min="1"
+                min="0"
               />
             </div>
           </div>

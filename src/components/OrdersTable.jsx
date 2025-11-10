@@ -91,6 +91,8 @@ const OrdersTable = ({
   };
 
   const handleSaveOrder = (orderData) => {
+    console.log({ orderData });
+    
     if (orderModal.editingItem) {
       onEditOrder(orderModal.editingItem.id, orderData);
     } else {

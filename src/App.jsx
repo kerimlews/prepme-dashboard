@@ -55,7 +55,7 @@ const mapMealNames = (meals, naziviData, imports) => {
 const getWeekDayCroatian = (dateString) => {
   const date = new Date(dateString);
   const weekdays = ['Nedjelja', 'Ponedjeljak', 'Utorak', 'Srijeda', 'Četvrtak', 'Petak', 'Subota'];
-  return weekdays[date.getDay()];
+  return weekdays[date.getDay() - 1];
 };
 
 const App = () => {
@@ -93,6 +93,8 @@ const App = () => {
   
   // console.log({ naziviData, orders, imports });
   
+  const sumMeals = meals => Object.keys(meals).reduce((acc, a) => acc + meals[a], 0);
+
   // Create orders function - maps Shopify orders and merges with filtered pretplate
   const handleCreateOrders = () => {
     if (!selectedDate) {
@@ -132,7 +134,7 @@ const App = () => {
         // Merge with existing pretplate order
         const mergedMeals = mergeMeals(existingMeals, meals);
 
-        const totalMeals = (existingOrder.totalMeals || 0) + (shopifyOrder.totalMeals || 0);
+        const totalMeals = sumMeals(existingOrder.meals) + sumMeals(shopifyOrder.meals);
         
         ordersMap.set(lowerName, {
           ...existingOrder, // Pretplate data takes precedence
@@ -143,7 +145,10 @@ const App = () => {
         });
       } else {
         // New order from Shopify
-        ordersMap.set(lowerName, shopifyOrder);
+        ordersMap.set(lowerName, {
+          ...shopifyOrder,
+          totalMeals: sumMeals(shopifyOrder.meals)
+        });
       }
     });
 
@@ -164,7 +169,6 @@ const App = () => {
     const newOrder = {
       ...orderData,
       id: generateId(),
-      pretplata: false
     };
     setOrdersTableData(prev => [...prev, newOrder]);
   };
@@ -285,15 +289,15 @@ const generateDocxDocument = async (ordersData, date, weekday, totalMealsSum) =>
     const weekInMonth = getWeekInMonth(date);
 
     // A4 dimensions in DXA (1 inch = 1440 DXA, 1 cm = 567 DXA)
-    const A4_HEIGHT_DXA = 16840; // 29.7cm * 567 ≈ 16840 DXA
+    const A4_HEIGHT_DXA = 16840; // 29.7cm * 567 ≈ 16840 DXA 11880
     const A4_WIDTH_DXA = 11907;  // 21cm * 567 ≈ 11907 DXA
     
     // Default Word margins (1 inch = 1440 DXA each side)
-    const MARGIN_TOP = 1440;
-    const MARGIN_BOTTOM = 1440;
-    const MARGIN_LEFT = 1440;
-    const MARGIN_RIGHT = 1440;
-    
+    const MARGIN_TOP = 1016;
+    const MARGIN_BOTTOM = 1016;
+    const MARGIN_LEFT = 1268;
+    const MARGIN_RIGHT = 1268;
+  
     // Calculate available inner height for content
     const AVAILABLE_HEIGHT_FIRST_PAGE = A4_HEIGHT_DXA - MARGIN_TOP - MARGIN_BOTTOM - 800; // 800 for header
     const AVAILABLE_HEIGHT_OTHER_PAGES = A4_HEIGHT_DXA - MARGIN_TOP - MARGIN_BOTTOM;
@@ -301,7 +305,7 @@ const generateDocxDocument = async (ordersData, date, weekday, totalMealsSum) =>
     // Precise table height calculation
     const calculateTableHeight = (order) => {
         // REAL measurements from Word documents:
-        const SINGLE_LINE_HEIGHT = 240; // One line of text = 240 DXA
+        const SINGLE_LINE_HEIGHT = 140; // One line of text = 240 DXA
         const TABLE_BORDER = 40; // Top + bottom borders = 40 DXA
         const CELL_PADDING = 80; // Cell padding top + bottom = 80 DXA
         const TABLE_SPACING = 240; // Spacing before/after table = 240 DXA
