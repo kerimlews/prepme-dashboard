@@ -7,9 +7,11 @@ export async function GET({ url }) {
   const created = url.searchParams.get('created_at_min');
   const status = url.searchParams.get('status') || 'open';
   
-  const [year, day, month] = created.split('T')[0].split('-'); // Note: [year, day, month]
+  const [year, month, day] = created.split('T')[0].split('-'); // Note: [year, day, month]
   
   const date = `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
+  
+  console.log(date);
   
   try {
     const SHOPIFY_CONFIG = {
