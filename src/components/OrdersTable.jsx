@@ -1,8 +1,10 @@
 // src/components/OrdersTable.js
 import React, { useState, useMemo } from 'react';
 import OrderModal from './OrderModal';
+import { formatDateToDDMMYYYY } from '../utils/helpers';
 
 const OrdersTable = ({ 
+  groupedDates,
   ordersTableData,
   tableCounts,
   onRefresh, 
@@ -56,9 +58,9 @@ const OrdersTable = ({
     }));
   };
 
-  const getCardClass = (item) => {
+  const getCardClass = (item, subscription) => {
     // Check subscription ending first (highest priority)
-    if (item.subscription && item.subscription.total - item.subscription.current === 0) {
+    if (subscription && subscription.total - subscription.current === 0) {
       return 'card subscription-ending';
     }
     
@@ -104,7 +106,10 @@ const OrdersTable = ({
   const clearSearch = () => {
     setSearchTerm('');
   };
-
+  function findKeyByValue(obj, value) {
+      const entry = Object.entries(obj).find(([key, arr]) => arr.includes(value));
+      return entry ? entry[0] : null;
+  }
   return (
     <div className="orders-container">
       {/* Header with counts, legend, search, and actions */}
@@ -218,12 +223,20 @@ const OrdersTable = ({
         ) : (
           <div className="orders-cards-grid">
             {filteredAndSortedData.map(item => {
-              const isSubscriptionEnding = item.subscription && 
-                item.subscription.total - item.subscription.current === 0;
+              const gDates = groupedDates[item.name];
+              const subscription = gDates ? {
+                current: findKeyByValue(gDates, formatDateToDDMMYYYY(selectedDate)),
+                total: Math.max(...Object.keys(gDates))
+              } : null;
+
+              if (gDates) console.log({subscription, gDates, selectedDate: formatDateToDDMMYYYY(selectedDate)});
+              
+              const isSubscriptionEnding = subscription && 
+                subscription.total - subscription.current === 0;
               const meals = formatMeals(item.meals);
               
               return (
-                <div key={item.id} className={getCardClass(item)}>
+                <div key={item.id} className={getCardClass(item, subscription)}>
                   {/* Top Row - Main Info */}
                   <div className="card-top-row">
                     <div className="card-main-info">
@@ -251,7 +264,7 @@ const OrdersTable = ({
                       )}
                       <button 
                         className="icon-btn edit-btn"
-                        onClick={() => handleEdit(item)}
+                        onClick={() => handleEdit({ ...item, subscription })}
                         title="Uredi narudžbu"
                       >
                         ✏️
@@ -270,8 +283,8 @@ const OrdersTable = ({
                   <div className="card-second-row">
                     <div className="card-subscription">
                       <span className="subscription-label">
-                         {item.subscription ? 
-                          `Tjedan: :${item.subscription.current}/${item.subscription.total}` : 
+                         {subscription ? 
+                          `Tjedan: :${subscription.current}/${subscription.total}` : 
                           ''
                         }
                       </span>

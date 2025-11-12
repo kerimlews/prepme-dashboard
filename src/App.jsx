@@ -10,7 +10,7 @@ import StatusMessage from './components/StatusMessage';
 import { useShopify } from './hooks/useShopify';
 import { useFileParser } from './hooks/useFileParser';
 //import './styles/App.css';
-import { calculateCombinedPrice, calculateSize, generateId, getTodayDate, hasOrderOnDate, mergeMeals } from './utils/helpers';
+import { calculateCombinedPrice, calculateSize, generateId, getTodayDate, hasOrderOnDate, mergeMeals, normalizeString } from './utils/helpers';
 import MonthlySubs from './components/MonthlySubs';
 import NotFoundMeals from './components/NotFoundMeals';
 const { saveAs } = pkg;
@@ -26,7 +26,9 @@ const mapMealNames = (meals, naziviData, imports) => {
     [a.webNaziv.toLowerCase().trim()]: a.jelo
   }), {});
   
-   const values = Object.values(keys).map(k => k.toLowerCase().trim());
+  const imprtNames = imports.map(i => normalizeString(i.name));
+
+  const values = Object.values(keys).map(k => k.toLowerCase().trim());
 
   const notfound = {};
   
@@ -34,9 +36,9 @@ const mapMealNames = (meals, naziviData, imports) => {
   Object.entries(meals).forEach(([mealName, quantity]) => {
     const normalizeMealName = mealName.toLowerCase().trim();
     const mappedName = keys[normalizeMealName] || mealName;
-    if (!keys[normalizeMealName] && !values.includes(normalizeMealName)) notfound[mappedName] = 1;
+    if (!keys[normalizeMealName] && !values.includes(normalizeMealName) && !imprtNames.includes(normalizeString(normalizeMealName))) notfound[mappedName] = 1;
     
-    const paket = imports.find(i => i.name.toLowerCase().startsWith(normalizeMealName));
+    const paket = imports.find(i => normalizeString(i.name) === normalizeString(normalizeMealName));
 
     if (paket) {
       Object.keys(paket.meals).forEach(mealKey => {
@@ -73,6 +75,7 @@ const App = () => {
     imports,
     naziviData,
     pretplateData,
+    groupedDates,
     parseNaziviFile,
     updateExcelFile,
     parsePretplateFile,
@@ -90,7 +93,7 @@ const App = () => {
     monthlySubs,
     fetchOrders
   } = useShopify(imports);
-  
+    
   // console.log({ naziviData, orders, imports });
   
   const sumMeals = meals => Object.keys(meals).reduce((acc, a) => acc + meals[a], 0);
@@ -136,13 +139,19 @@ const App = () => {
 
         const totalMeals = sumMeals(existingOrder.meals) + sumMeals(shopifyOrder.meals);
         
-        ordersMap.set(lowerName, {
+        const obj = {
           ...existingOrder, // Pretplate data takes precedence
           meals: mergedMeals,
           totalMeals,
+          pretplata: existingOrder.pretplata || shopifyOrder.pretplata,
           price: calculateCombinedPrice(existingOrder.price, shopifyOrder.price),
           size: calculateSize(totalMeals),
-        });
+        };
+
+        if (obj.subscription) {
+          obj.subscription.current 
+        }
+        ordersMap.set(lowerName, obj);
       } else {
         // New order from Shopify
         ordersMap.set(lowerName, {
@@ -263,9 +272,7 @@ const App = () => {
     }
   };
 
-const generateDocxDocument = async (ordersData, date, weekday, totalMealsSum) => {
-    console.log({ date, weekday });
-    
+const generateDocxDocument = async (ordersData, date, weekday, totalMealsSum) => {    
     // Convert date from YYYY-MM-DD to DD/MM/YYYY
     const formatDate = (dateStr) => {
         const [year, month, day] = dateStr.split('T')[0].split('-');
@@ -802,11 +809,12 @@ const handleExportAdditionalOrders = () => {
         />
         
         <OrdersTable
+          groupedDates={groupedDates}
           ordersTableData={ordersTableData}
           tableCounts={tableCounts}
           onRefresh={handleRefresh}
           onExportPdf={handleExportPdf}
-          selectedDate={selectedDate}
+          selectedDate={pretplateSelectedDate}
           onAddOrder={addOrderToTable}
           onEditOrder={updateOrderInTable}
           onDeleteOrder={deleteOrderFromTable}

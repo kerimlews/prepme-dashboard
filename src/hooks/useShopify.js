@@ -1,5 +1,13 @@
 import { useState, useCallback } from 'react';
-import { calculateSize, generateId } from '../utils/helpers';
+import { calculateSize, generateId, normalizeString } from '../utils/helpers';
+
+function multiplyMeals(meals, quantity) {
+    const result = {};
+    for (const [meal, count] of Object.entries(meals)) {
+        result[meal] = count * quantity;
+    }
+    return result;
+}
 
 export const useShopify = (imports) => {
   const [orders, setOrders] = useState({ orders: [], additionalOrders: [] });
@@ -48,10 +56,13 @@ export const useShopify = (imports) => {
 
         // AKO JE MJESENCA PRESKOCI - POTREBNO DODATI RUCNO U EXCEL PRETPLATE
         if (isMonthlySub) {
+          console.log('MONTHLY SUB', item);
+          
             setMonthlySubs(prev => [...prev, {
               url: order.statusPageUrl,
-              name: item.name,
-              customer: customerName
+              name: item.title,
+              customer: customerName,
+              ...item
             }]);
             continue;
         }
@@ -63,23 +74,31 @@ export const useShopify = (imports) => {
         const variants = item?.variant?.title?.split(' / ')?.filter(key => !sizes.includes(key)).join(' - ');
 
         // CLEAR TITLE NAME
-        item.title = item.title.replace('XL', '').replace('Standard', '').split(' -')[0];
+        item.title = item.title.replace('XL', '').replace('Standard', '');
 
         // NADOVEZI NA TITLE DODATKE
         item.title = `${isXL ? 'XL ' : ''}${item.title}${variants ? ` - ${variants}` : ''}`
         
-        const paket = imports.find(p => p.name === item.title);
+        const paket = imports.find(p => normalizeString(p.name) === normalizeString(item.title));
 
+        if (!paket && item.title.includes('paket')) {
+          console.log('NOT FOUND', { ORG: imports, imports: imports.map(i => normalizeString(i.name)), item: normalizeString(item.title), paket });
+        }
+        
         if (paket) {
+          paket.meals = multiplyMeals(paket.meals, item.quantity);
           totalMeals = Object.values(paket.meals).reduce((sum, qty) => sum + qty, 0);
           meals = Object.keys(paket.meals).length > 0 ? paket.meals : { [paket?.title || 'Unknown Product']: 1 };
         } else {
-          meals[item.title] = (meals[item.title] || 0) + 1;
+          meals[item.title] = (meals[item.title] || 0) + item.quantity;
+          totalMeals = Object.values(meals).reduce((sum, qty) => sum + qty, 0);
         }
       }
 
+      const address = order?.billingAddress?.address1 || order?.shippingAddress?.address1 || '';
       const city = (order.billingAddress?.city || order.shippingAddress?.city || '').toLowerCase();
-      
+      const isNearbyOsijek = ['Bilje', 'Darda', 'Mece', 'Višnjevac', 'Josipovac', 'Livana', 'Antunovac', 'Brijest', 'Briješće'].some(ad => address.toLowerCase().includes(ad.toLowerCase()));
+
       processedOrders.push({
         id: generateId(),
         name: customerName,
@@ -89,14 +108,14 @@ export const useShopify = (imports) => {
         pretplata: false,
         url: order.statusPageUrl,
         isCOD: order.paymentGatewayNames && order.paymentGatewayNames.includes("Cash on Delivery (COD)"),
-        address: order?.billingAddress?.address1 || order?.shippingAddress?.address1 || '',
-        target: city === 'osijek' ? 'OS' : 'HR',
+        address,
+        target: city === 'osijek' || isNearbyOsijek ? 'OS' : 'HR',
         size: calculateSize(totalMeals)
       });
     }
     
     return processedOrders;
-  }, []);
+  }, [imports]);
 
   const fetchOrders = async (selectedDate) => {
     setLoading(true);

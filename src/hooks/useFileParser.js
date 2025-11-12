@@ -7,6 +7,7 @@ export const useFileParser = () => {
   const [naziviData, setNaziviData] = useState([]);
   const [imports, setImports] = useState([]);
   const [pretplateData, setPretplateData] = useState([]);
+  const [groupedDates, setGroupedDates] = useState({});
 
   // Update pretplateData when nazivi changes
   useEffect(() => {
@@ -169,8 +170,23 @@ export const useFileParser = () => {
                   // Track dates for each customer
                   const customerDates = new Map();
                   
+                  let currGroupedDates = {};
+
                   // First, collect all customer data AND dates
                   jsonData.forEach((row, rowIndex) => {
+                                              
+                        //   const testCases = [
+                        //     '1/ 19.8.',
+                        //     '1 / 19.8.',
+                        //     '1/ 19.8',
+                        //     '1/ 19.8 some text',
+                        //     '23/ 5.12. more text here',
+                        //     '1/19.8.',
+                        //     '19.9.',
+                        //     '19.9'
+                        // ];
+                        const regex = /^(?:(\d{1,2})\s*\/\s*)?(\d{1,2})\.(\d{1,2})(?:\.|\s*(.*))?$/;
+
                       Object.entries(row).forEach(([customerInfo, cellValue]) => {
                           // Skip if customerInfo is '__rowNum__' or if cellValue is empty
                           if (customerInfo === '__rowNum__' || !cellValue || cellValue.toString().trim() === '') {
@@ -178,34 +194,51 @@ export const useFileParser = () => {
                           }
                           
                           const cellText = cellValue.toString().trim();
-                          
-                          // Check if this is a DATE row first
-                          const dateMatch = cellText.match(/^(\d{1,2})\.(\d{1,2})\.\s*(.*)?$/);
-                          if (dateMatch) {
-                              const day = parseInt(dateMatch[1]);
-                              const month = parseInt(dateMatch[2]);
-                              
-                              // Validate it's a real date
-                              if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
-                                  const formattedDate = `${day.toString().padStart(2, '0')}/${month.toString().padStart(2, '0')}/${currentYear}`;
-                                  
-                                  // Parse customer information from the key to find which customer this date belongs to
-                                  const parts = customerInfo.split('/').map(part => part.trim());
-                                  if (parts.length >= 3) {
-                                      const name = parts[0];
-                                      
-                                      if (!customerDates.has(name)) {
-                                          customerDates.set(name, []);
-                                      }
-                                      if (!customerDates.get(name).includes(formattedDate)) {
-                                          customerDates.get(name).push(formattedDate);
-                                          console.log(`Found date for ${name}: ${formattedDate} from "${cellText}"`);
-                                      }
-                                  }
-                              }
-                              return; // Skip further processing for date rows
-                          }
-                          
+
+                        // Check if this is a DATE row first
+                        const dateMatch = cellText.match(regex);
+                        if (dateMatch) {
+                            const weekNumber = dateMatch[1] ? parseInt(dateMatch[1]) : null;
+                            const day = parseInt(dateMatch[2]);
+                            const month = parseInt(dateMatch[3]);
+                            
+                            // Validate it's a real date
+                            if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+                                const dateString = `${day.toString().padStart(2, '0')}/${month.toString().padStart(2, '0')}/${currentYear}`;
+                                                             // Parse customer information from the key to find which customer this date belongs to
+                                const parts = customerInfo.split('/').map(part => part.trim());
+
+                                if (parts.length >= 3) {
+                                    const name = parts[0];
+                                    // Determine which week number to use
+                                    const targetWeekNumber = weekNumber !== null
+                                        ? weekNumber
+                                        : currGroupedDates[name]
+                                        ? Math.max(...Object.keys(currGroupedDates[name]))
+                                        : 1; 
+
+                                    if (name === 'Zvonimir Cvetković') console.log(name, { targetWeekNumber, groupedDates: currGroupedDates[name] });
+                                    
+                                    if (!customerDates.has(name)) {
+                                        customerDates.set(name, []);
+                                    }
+                                    if (!customerDates.get(name).includes(dateString)) {
+                                        customerDates.get(name).push(dateString);
+                                        console.log(`Found date for ${name}: ${dateString} from "${cellText}"`);
+                                    }
+                                    
+                                    currGroupedDates = {
+                                        ...currGroupedDates,
+                                        [name]: {
+                                            ...(currGroupedDates[name] || {}),
+                                            [targetWeekNumber]: [...(currGroupedDates[name]?.[targetWeekNumber] || []), dateString]
+                                        }
+                                    }
+                                }
+                            }
+                            return; // Skip further processing for date rows
+                        }
+
                           // Otherwise, process as customer/meal data
                           // Parse customer information from the key
                           const parts = customerInfo.split('/').map(part => part.trim());
@@ -341,6 +374,8 @@ export const useFileParser = () => {
                       });
                   });
                   
+                  setGroupedDates(currGroupedDates);
+
                   // Now assign the collected dates to customers
                   customersMap.forEach((customer, name) => {
                       const dates = customerDates.get(name) || [];
@@ -354,7 +389,7 @@ export const useFileParser = () => {
                               return dateA - dateB;
                           });
 
-                          console.log(`Assigned ${dates.length} dates to ${name}:`, customer.orderDates);
+                          // console.log(`Assigned ${dates.length} dates to ${name}:`, customer.orderDates);
                       } else {
                           console.log(`No dates found for ${name}`);
                       }
@@ -466,6 +501,7 @@ async function updateExcelFile(file, mealsData) {
     naziviData,
     pretplateData,
     imports,
+    groupedDates,
     updateExcelFile,
     parseNaziviFile,
     parsePretplateFile,

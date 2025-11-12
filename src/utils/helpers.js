@@ -8,7 +8,12 @@ export const calculateSize = (totalMeals) => {
   return '*XXL';
 };
 
-
+export function normalizeString(str) {
+    return str.toLowerCase()
+              .replace(/\s/g, '')
+              .replace(/[–—]/g, '-') // Normalize different dash types
+              .replace(/[^a-z0-9-()]/g, ''); // Keep only letters, numbers, hyphens, parentheses
+}
 // Helper function to merge meals with quantity addition
 export const mergeMeals = (meals1, meals2) => {
   const merged = { ...meals1 };

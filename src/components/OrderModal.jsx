@@ -184,6 +184,7 @@ const OrderModal = ({ isOpen, onClose, onSave, editingItem }) => {
               <input
                 type="number"
                 id="order-current"
+                disabled
                 value={formData.current}
                 onChange={(e) => setFormData(prev => ({ ...prev, current: e.target.value }))}
                 min="0"
@@ -194,6 +195,7 @@ const OrderModal = ({ isOpen, onClose, onSave, editingItem }) => {
               <label htmlFor="order-total">Subscription Total</label>
               <input
                 type="number"
+                disabled
                 id="order-total"
                 value={formData.total}
                 onChange={(e) => setFormData(prev => ({ ...prev, total: e.target.value }))}
