@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { calculateSize, generateId, normalizeString } from '../utils/helpers';
+import { calculateSize, generateId, mergeMeals, normalizeString } from '../utils/helpers';
 
 function multiplyMeals(meals, quantity) {
     const result = {};
@@ -87,14 +87,14 @@ export const useShopify = (imports) => {
         
         if (paket) {
           paket.meals = multiplyMeals(paket.meals, item.quantity);
-          totalMeals = Object.values(paket.meals).reduce((sum, qty) => sum + qty, 0);
-          meals = Object.keys(paket.meals).length > 0 ? paket.meals : { [paket?.title || 'Unknown Product']: 1 };
+          meals = Object.keys(paket.meals).length > 0 ? mergeMeals(paket.meals, meals) : { ...meals, [paket?.title || 'Unknown Product']: 1 };
         } else {
           meals[item.title] = (meals[item.title] || 0) + item.quantity;
-          totalMeals = Object.values(meals).reduce((sum, qty) => sum + qty, 0);
         }
+        
+        totalMeals = Object.values(meals).reduce((sum, qty) => sum + qty, 0);
       }
-
+      
       const address = order?.shippingAddress?.address1 || order?.billingAddress?.address1 || '';
       const city = (order.shippingAddress?.city || order.billingAddress?.city || '').toLowerCase();
       const isNearbyOsijek = ['osijek', 'Bilje', 'Darda', 'Mece', 'Višnjevac', 'Josipovac', 'Livana', 'Antunovac', 'Brijest', 'Briješće'].some(ad => city === ad.toLowerCase() || address.toLowerCase().includes(ad.toLowerCase()));
