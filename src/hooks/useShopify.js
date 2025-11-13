@@ -97,7 +97,7 @@ export const useShopify = (imports) => {
 
       const address = order?.shippingAddress?.address1 || order?.billingAddress?.address1 || '';
       const city = (order.shippingAddress?.city || order.billingAddress?.city || '').toLowerCase();
-      const isNearbyOsijek = ['Bilje', 'Darda', 'Mece', 'Višnjevac', 'Josipovac', 'Livana', 'Antunovac', 'Brijest', 'Briješće'].some(ad => address.toLowerCase().includes(ad.toLowerCase()));
+      const isNearbyOsijek = ['osijek', 'Bilje', 'Darda', 'Mece', 'Višnjevac', 'Josipovac', 'Livana', 'Antunovac', 'Brijest', 'Briješće'].some(ad => city === ad.toLowerCase() || address.toLowerCase().includes(ad.toLowerCase()));
 
       processedOrders.push({
         id: generateId(),
@@ -109,7 +109,7 @@ export const useShopify = (imports) => {
         url: order.statusPageUrl,
         isCOD: order.paymentGatewayNames && order.paymentGatewayNames.includes("Cash on Delivery (COD)"),
         address,
-        target: city === 'osijek' || isNearbyOsijek ? 'OS' : 'HR',
+        target: isNearbyOsijek ? 'OS' : 'HR',
         size: calculateSize(totalMeals)
       });
     }
