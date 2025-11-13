@@ -3,7 +3,7 @@ export const generateId = () => '_' + Math.random().toString(36).substr(2, 9);
 export const calculateSize = (totalMeals) => {
   if (totalMeals <= 5) return '*M';
   if (totalMeals <= 11) return '*S';
-  if (totalMeals <= 17) return '*X';
+  if (totalMeals <= 17) return '*V';
   if (totalMeals <= 28) return '*XL';
   return '*XXL';
 };
