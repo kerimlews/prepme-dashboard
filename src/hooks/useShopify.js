@@ -95,8 +95,8 @@ export const useShopify = (imports) => {
         }
       }
 
-      const address = order?.billingAddress?.address1 || order?.shippingAddress?.address1 || '';
-      const city = (order.billingAddress?.city || order.shippingAddress?.city || '').toLowerCase();
+      const address = order?.shippingAddress?.address1 || order?.billingAddress?.address1 || '';
+      const city = (order.shippingAddress?.city || order.billingAddress?.city || '').toLowerCase();
       const isNearbyOsijek = ['Bilje', 'Darda', 'Mece', 'Višnjevac', 'Josipovac', 'Livana', 'Antunovac', 'Brijest', 'Briješće'].some(ad => address.toLowerCase().includes(ad.toLowerCase()));
 
       processedOrders.push({
