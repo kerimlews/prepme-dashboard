@@ -10,7 +10,7 @@ import StatusMessage from './components/StatusMessage';
 import { useShopify } from './hooks/useShopify';
 import { useFileParser } from './hooks/useFileParser';
 //import './styles/App.css';
-import { calculateCombinedPrice, calculateSize, generateId, getTodayDate, hasOrderOnDate, mergeMeals, normalizeString } from './utils/helpers';
+import { calculateCombinedPrice, calculateSize, formatDateToDDMMYYYY, generateId, getTodayDate, hasOrderOnDate, mergeMeals, normalizeString } from './utils/helpers';
 import MonthlySubs from './components/MonthlySubs';
 import NotFoundMeals from './components/NotFoundMeals';
 const { saveAs } = pkg;
@@ -377,8 +377,19 @@ const generateDocxDocument = async (ordersData, date, weekday, totalMealsSum) =>
         return pages;
     };
 
+     function findKeyByValue(obj, value) {
+      const entry = Object.entries(obj).find(([key, arr]) => arr.includes(value));
+      return entry ? entry[0] : null;
+  }
+  
     // Create order table
     const createOrderTable = (order) => {      
+        const gDates = groupedDates[order.name];
+        const subscription = gDates ? {
+          current: findKeyByValue(gDates, formatDateToDDMMYYYY(selectedDate)),
+          total: Math.max(...Object.keys(gDates))
+        } : null;
+      
         const rows = [
             // Customer info row
             new TableRow({
@@ -388,7 +399,7 @@ const generateDocxDocument = async (ordersData, date, weekday, totalMealsSum) =>
                             new Paragraph({
                                 children: [
                                     new TextRun({
-                                        text: `${order.name} / ${order.totalMeals}X / ${order.target} / ${order.price} ${order?.subscription ? `${order?.subscription.current}/${order?.subscription.total}` : ''} / ${order.size || ''} ${order?.type ? `/ ${order.type}` : ''}`,
+                                        text: `${order.name} / ${order.totalMeals}X / ${order.target} / ${order.price} ${subscription ? `${subscription.current}/${subscription.total}` : ''} / ${order.size || ''} ${order?.type ? `/ ${order.type}` : ''}`,
                                         bold: true,
                                     }),
                                 ],
@@ -809,6 +820,7 @@ const handleExportAdditionalOrders = () => {
         />
         
         <OrdersTable
+          imports={imports}
           groupedDates={groupedDates}
           ordersTableData={ordersTableData}
           tableCounts={tableCounts}
