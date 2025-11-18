@@ -467,6 +467,8 @@ async function updateExcelFile(file, mealsData) {
         // Get the first worksheet
         const worksheet = workbook.getWorksheet(1);
 
+        const notFound = [];
+
         // Update quantities based on meal names
         worksheet.eachRow((row, rowNumber) => {
             if (rowNumber > 1) { // Skip header row
@@ -474,12 +476,40 @@ async function updateExcelFile(file, mealsData) {
                 const quantityCell = row.getCell(2); // Column B
                 
                 const mealName = mealNameCell.value;
-                if (mealName && mealsData.hasOwnProperty(mealName)) {
-                    quantityCell.value = mealsData[mealName];
+                let foundMealName = null;
+
+                // Extract meal name based on cell type
+                if (!mealName?.richText && mealName) {
+                    foundMealName = mealName;
+                } else if (mealName?.richText) {
+                    foundMealName = mealName.richText.map(r => r.text).join('');
+                }
+
+                // Update quantity if meal is found
+                if (foundMealName && mealsData.hasOwnProperty(foundMealName)) {
+                    // Check if quantityCell has a formula object
+                    if (quantityCell.value && typeof quantityCell.value === 'object' && quantityCell.value.formula) {
+                        // Preserve the formula structure but update the displayed value
+                        // For ExcelJS, we need to clear and set the value properly
+                        quantityCell.value = {
+                            formula: quantityCell.value.formula,
+                            result: mealsData[foundMealName]
+                        };
+                    } else {
+                        // Regular cell without formula, just update the value
+                        quantityCell.value = mealsData[foundMealName];
+                    }
+                    console.log('Updated', { meal: foundMealName, quantity: mealsData[foundMealName] });
+
+                } else if (foundMealName) {
+                    notFound.push(foundMealName);
                 }
             }
         });
-
+        
+        if (notFound.length > 0) alert(`OVA JELA FALE U EXCEL: ${notFound.join(', ')}`)
+        console.log({notFound})
+        
         // Download the updated file with preserved styles
         const buffer = await workbook.xlsx.writeBuffer();
         const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
