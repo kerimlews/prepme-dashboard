@@ -260,7 +260,7 @@ const App = () => {
       const weekday = getWeekDayCroatian(date);
       
       // Create DOCX document
-      const doc = await generateDocxDocument(ordersTableData, date, weekday, totalMealsSum);
+      const doc = await generateDocxDocument([...ordersTableData.filter(t => t.target ==='OS'), ...ordersTableData.filter(t => t.target !== 'OS')], date, weekday, totalMealsSum);
       
       // Save the document
       const blob = await Packer.toBlob(doc);
@@ -579,6 +579,16 @@ const generateDocxDocument = async (ordersData, date, weekday, totalMealsSum) =>
                                 bold: true,
                                 size: 24,
                             }),
+                          ],
+                        alignment: AlignmentType.CENTER,
+                        spacing: { after: 400 },
+                    }),
+                    new Paragraph({
+                        children: [
+                            new TextRun({
+                                text: `HR: ${ordersData.filter(p => p.target !== 'OS').length} / OS: ${ordersData.filter(p => p.target === 'OS').length}`,
+                                bold: true,
+                            }),
                         ],
                         alignment: AlignmentType.CENTER,
                         spacing: { after: 400 },
@@ -844,7 +854,6 @@ const handleExportAdditionalOrders = () => {
             isOpen: true, 
             editingItem: pretplateData.find(item => item.id === id) 
           })}
-          
           onDelete={deletePretplate}
           emptyMessage="No pretplate data loaded"
           type="pretplate"
