@@ -386,7 +386,7 @@ const generateDocxDocument = async (ordersData, date, weekday, totalMealsSum) =>
     const createOrderTable = (order) => {      
         const gDates = groupedDates[order.name];
         const subscription = gDates ? {
-          current: findKeyByValue(gDates, formatDateToDDMMYYYY(selectedDate)),
+          current: findKeyByValue(gDates, formatDateToDDMMYYYY(pretplateSelectedDate)),
           total: Math.max(...Object.keys(gDates))
         } : null;
       
