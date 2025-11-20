@@ -1,6 +1,6 @@
 // src/components/Sidebar.js
 import React, { useState, useMemo } from 'react';
-import { hasOrderOnDate } from '../utils/helpers';
+import { formatDateToDDMMYYYY, hasOrderOnDate } from '../utils/helpers';
 import CustomDateInput from './CustomDateInput';
 
 const Sidebar = ({
@@ -10,6 +10,7 @@ const Sidebar = ({
   columns,
   onAdd,
   onEdit,
+  groupedDates,
   onDelete,
   emptyMessage,
   type,
@@ -57,6 +58,11 @@ const Sidebar = ({
     setSearchTerm('');
   };
 
+  function findKeyByValue(obj, value) {
+      const entry = Object.entries(obj).find(([key, arr]) => arr.includes(value));
+      return entry ? entry[0] : null;
+  }
+  
   const renderCardContent = (item) => {
     if (type === 'nazivi') {
       return (
@@ -70,6 +76,12 @@ const Sidebar = ({
         </div>
       );
     } else {
+      const gDates = groupedDates?.[item.name];
+      const subscription = gDates ? {
+        current: findKeyByValue(gDates, formatDateToDDMMYYYY(selectedDate)),
+        total: Math.max(...Object.keys(gDates))
+      } : null;
+
       return (
         <div className="card-content">
           <div className="card-field">
@@ -82,7 +94,7 @@ const Sidebar = ({
             <strong>Target:</strong> {item.target}
           </div>
           <div className="card-field">
-            <strong>Subscription:</strong> {item.subscription?.current}/{item.subscription?.total}
+            <strong>Subscription:</strong> {subscription?.current || 0}/{subscription?.total || 0}
           </div>
           <div className="card-field">
             <strong>Price:</strong> {item.price}

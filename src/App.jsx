@@ -836,6 +836,7 @@ const handleExportAdditionalOrders = () => {
         <Sidebar
           title="Pretplate"
           count={pretplateData.length}
+          groupedDates={groupedDates}
           data={pretplateData}
           columns={['Name', 'Size', 'Target', 'Subscription', 'Price']}
           onAdd={() => setPretplateModal({ isOpen: true, editingItem: null })}
