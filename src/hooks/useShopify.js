@@ -79,13 +79,10 @@ export const useShopify = (imports) => {
         // NADOVEZI NA TITLE DODATKE
         item.title = `${isXL ? 'XL ' : ''}${item.title}${variants ? ` - ${variants}` : ''}`
         
-        const paket = imports.find(p => normalizeString(p.name) === normalizeString(item.title));
+        let paket = imports.find(p => normalizeString(p.name) === normalizeString(item.title));
 
-        if (!paket && item.title.includes('paket')) {
-          console.log('NOT FOUND', { ORG: imports, imports: imports.map(i => normalizeString(i.name)), item: normalizeString(item.title), paket });
-        }
-        
         if (paket) {
+          paket = {...paket}          
           paket.meals = multiplyMeals(paket.meals, item.quantity);
           meals = Object.keys(paket.meals).length > 0 ? mergeMeals(paket.meals, meals) : { ...meals, [paket?.title || 'Unknown Product']: 1 };
         } else {
