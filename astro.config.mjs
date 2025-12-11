@@ -13,5 +13,5 @@ export default defineConfig({
       include: ['react', 'react-dom']
     }
   },
-  adapter: netlify(),
+  // adapter: netlify(),
 });
