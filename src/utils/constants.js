@@ -1,8 +1,8 @@
 export const shopifyConfig = {
   storeUrl: 'https://6be389.myshopify.com',
-  accessToken: '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',
+  accessToken: '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',
   headers: {
-    'X-Shopify-Access-Token': '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',
+    'X-Shopify-Access-Token': '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',
     'Content-Type': 'application/json'
   }
 };
