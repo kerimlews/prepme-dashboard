@@ -14,7 +14,7 @@ export async function GET({ url }) {
 
     const SHOPIFY_CONFIG = {
       storeUrl: '6be389.myshopify.com',
-      accessToken: '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',
+      accessToken: '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',
       apiVersion: '2024-01'
     };
 
