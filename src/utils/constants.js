@@ -1,12 +1,3 @@
-export const shopifyConfig = {
-  storeUrl: 'https://6be389.myshopify.com',
-  accessToken: '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',
-  headers: {
-    'X-Shopify-Access-Token': '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',
-    'Content-Type': 'application/json'
-  }
-};
-
 export const nonXLProducts = [
   'Proteinske Kokos Kuglice',
   'Proteinski Choco Brownie',
